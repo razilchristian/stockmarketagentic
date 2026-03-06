@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Price Alerts - AlphaAnalytics</title>
+  
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- AOS Animation -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  
+  <!-- Shared CSS -->
+  <link rel="stylesheet" href="/static/css/alpha-analytics.css">
+  
+  <style>
+    /* Page-specific styles */
+    .alerts-header {
+      background: linear-gradient(135deg, var(--card-bg), var(--darker-bg));
+      border-radius: var(--radius-xl);
+      padding: 32px;
+      margin-bottom: 32px;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .alerts-header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--gradient-warning);
+    }
+
+    .alerts-header-content h1 {
+      font-family: var(--font-display);
+      font-size: 36px;
+      margin-bottom: 8px;
+      background: var(--gradient-warning);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .alerts-header-content p {
+      color: var(--text-secondary);
+      font-size: 16px;
+    }
+
+    .alerts-stats {
+      display: flex;
+      gap: 24px;
+      background: var(--darker-bg);
+      padding: 16px 24px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+    }
+
+    .alert-stat {
+      text-align: center;
+    }
+
+    .alert-stat .value {
+      font-size: 28px;
+      font-weight: 700;
+      font-family: var(--font-display);
+      color: var(--warning);
+    }
+
+    .alert-stat .label {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .alerts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    @media (max-width: 1024px) {
+      .alerts-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Create Alert Form */
+    .create-alert-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .create-alert-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--gradient-warning);
+    }
+
+    .create-alert-card h2 {
+      font-family: var(--font-display);
+      font-size: 24px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .create-alert-card h2 i {
+      color: var(--warning);
+    }
+
+    .alert-type-selector {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .alert-type-btn {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--darker-bg);
+      color: var(--text-secondary);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .alert-type-btn i {
+      font-size: 18px;
+    }
+
+    .alert-type-btn.price.active {
+      border-color: var(--warning);
+      background: var(--gradient-warning);
+      color: white;
+    }
+
+    .alert-type-btn.volume.active {
+      border-color: var(--info);
+      background: var(--gradient-info);
+      color: white;
+    }
+
+    .alert-type-btn.news.active {
+      border-color: var(--success);
+      background: var(--gradient-success);
+      color: white;
+    }
+
+    .condition-selector {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .condition-btn {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--darker-bg);
+      color: var(--text-secondary);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+    }
+
+    .condition-btn.above.active {
+      border-color: var(--success);
+      background: var(--gradient-success);
+      color: white;
+    }
+
+    .condition-btn.below.active {
+      border-color: var(--danger);
+      background: var(--gradient-danger);
+      color: white;
+    }
+
+    .condition-btn.crosses.active {
+      border-color: var(--info);
+      background: var(--gradient-info);
+      color: white;
+    }
+
+    .notification-methods {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .method-btn {
+      padding: 12px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--darker-bg);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+    }
+
+    .method-btn i {
+      font-size: 20px;
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .method-btn span {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .method-btn.active {
+      border-color: var(--primary);
+      background: var(--gradient-primary);
+      color: white;
+    }
+
+    /* Active Alerts List */
+    .active-alerts-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .active-alerts-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--gradient-primary);
+    }
+
+    .active-alerts-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .active-alerts-header h2 {
+      font-family: var(--font-display);
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .active-alerts-header h2 i {
+      color: var(--primary);
+    }
+
+    .alert-filters {
+      display: flex;
+      gap: 8px;
+    }
+
+    .alert-filter {
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
+      background: var(--darker-bg);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .alert-filter:hover {
+      border-color: var(--primary);
+    }
+
+    .alert-filter.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    .alerts-list {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .alert-item {
+      background: var(--darker-bg);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .alert-item:hover {
+      transform: translateX(5px);
+      border-color: var(--primary);
+    }
+
+    .alert-item.triggered {
+      border-left: 4px solid var(--success);
+      opacity: 0.8;
+    }
+
+    .alert-item.pending {
+      border-left: 4px solid var(--warning);
+    }
+
+    .alert-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .alert-symbol {
+      font-size: 18px;
+      font-weight: 700;
+      font-family: var(--font-display);
+    }
+
+    .alert-type-badge {
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .alert-type-badge.price {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--warning);
+    }
+
+    .alert-type-badge.volume {
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--info);
+    }
+
+    .alert-type-badge.news {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--success);
+    }
+
+    .alert-condition {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+
+    .alert-condition.above {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--success);
+    }
+
+    .alert-condition.below {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+    }
+
+    .alert-details {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+      padding: 12px;
+      background: var(--card-bg);
+      border-radius: var(--radius-md);
+    }
+
+    .alert-detail {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .alert-detail .label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .alert-detail .value {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .alert-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .alert-methods {
+      display: flex;
+      gap: 8px;
+    }
+
+    .alert-method {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--card-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .alert-method.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .alert-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .alert-edit, .alert-delete {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .alert-edit {
+      background: var(--info);
+      color: white;
+    }
+
+    .alert-edit:hover {
+      transform: scale(1.1);
+    }
+
+    .alert-delete {
+      background: var(--danger);
+      color: white;
+    }
+
+    .alert-delete:hover {
+      transform: scale(1.1);
+    }
+
+    .alert-time {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Alert History */
+    .history-section {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      margin-top: 24px;
+    }
+
+    .history-section h3 {
+      font-family: var(--font-display);
+      font-size: 20px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .history-section h3 i {
+      color: var(--info);
+    }
+
+    .history-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .history-item {
+      background: var(--darker-bg);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      border: 1px solid var(--border);
+      transition: all 0.3s;
+    }
+
+    .history-item:hover {
+      transform: translateY(-3px);
+      border-color: var(--info);
+    }
+
+    .history-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .history-symbol {
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .history-time {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .history-message {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .history-price {
+      font-weight: 600;
+      color: var(--success);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+    }
+
+    .empty-state i {
+      font-size: 64px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    @media (max-width: 768px) {
+      .alerts-header {
+        flex-direction: column;
+        text-align: center;
+      }
+      
+      .alerts-stats {
+        width: 100%;
+        justify-content: space-around;
+      }
+      
+      .alert-details {
+        grid-template-columns: 1fr;
+      }
+      
+      .alert-footer {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="nav-row">
+      <div class="logo">
+        <i class="fas fa-chart-line"></i>
+        AlphaAnalytics
+      </div>
+      
+      <button class="menu-toggle" aria-label="Toggle menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <nav class="nav-items">
+        <a href="/jeet" class="nav-item"><i class="fas fa-home"></i>Dashboard</a>
+        <a href="/portfolio" class="nav-item"><i class="fas fa-briefcase"></i>Portfolio</a>
+        <a href="/mystock" class="nav-item"><i class="fas fa-star"></i>My Stock</a>
+        <a href="/deposit" class="nav-item"><i class="fas fa-wallet"></i>Deposit</a>
+        <a href="/insight" class="nav-item"><i class="fas fa-brain"></i>Insight</a>
+        <a href="/prediction" class="nav-item"><i class="fas fa-chart-line"></i>Prediction</a>
+        <a href="/news" class="nav-item"><i class="fas fa-newspaper"></i>News</a>
+        <a href="/videos" class="nav-item"><i class="fas fa-video"></i>Videos</a>
+        <a href="/superstars" class="nav-item"><i class="fas fa-star"></i>Superstars</a>
+        <a href="/alerts" class="nav-item active"><i class="fas fa-bell"></i>Alerts</a>
+        <a href="/help" class="nav-item"><i class="fas fa-question-circle"></i>Help</a>
+        <a href="/profile" class="nav-item"><i class="fas fa-user"></i>Profile</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Alerts Header -->
+    <div class="alerts-header" data-aos="fade-up">
+      <div class="alerts-header-content">
+        <h1><i class="fas fa-bell"></i> Price Alerts</h1>
+        <p>Set custom alerts for price movements, volume spikes, and news events</p>
+      </div>
+      <div class="alerts-stats">
+        <div class="alert-stat">
+          <div class="value" id="activeAlertsCount">12</div>
+          <div class="label">Active Alerts</div>
+        </div>
+        <div class="alert-stat">
+          <div class="value" id="triggeredToday">5</div>
+          <div class="label">Triggered Today</div>
+        </div>
+        <div class="alert-stat">
+          <div class="value" id="totalAlerts">47</div>
+          <div class="label">Total Alerts</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alerts Grid -->
+    <div class="alerts-grid" data-aos="fade-up" data-aos-delay="100">
+      <!-- Create Alert Form -->
+      <div class="create-alert-card">
+        <h2><i class="fas fa-plus-circle"></i> Create New Alert</h2>
+        
+        <form id="createAlertForm">
+          <div class="form-group mb-4">
+            <label class="form-label">Stock Symbol</label>
+            <input type="text" id="alertSymbol" class="form-control" placeholder="e.g. AAPL, TSLA, RELIANCE.NS" value="AAPL" required>
+          </div>
+
+          <div class="form-group mb-4">
+            <label class="form-label">Alert Type</label>
+            <div class="alert-type-selector">
+              <button type="button" class="alert-type-btn price active" data-type="price">
+                <i class="fas fa-chart-line"></i> Price
+              </button>
+              <button type="button" class="alert-type-btn volume" data-type="volume">
+                <i class="fas fa-chart-bar"></i> Volume
+              </button>
+              <button type="button" class="alert-type-btn news" data-type="news">
+                <i class="fas fa-newspaper"></i> News
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group mb-4" id="conditionGroup">
+            <label class="form-label">Condition</label>
+            <div class="condition-selector">
+              <button type="button" class="condition-btn above active" data-condition="above">Above</button>
+              <button type="button" class="condition-btn below" data-condition="below">Below</button>
+              <button type="button" class="condition-btn crosses" data-condition="crosses">Crosses</button>
+            </div>
+          </div>
+
+          <div class="form-group mb-4">
+            <label class="form-label" id="valueLabel">Target Price ($)</label>
+            <input type="number" id="alertValue" class="form-control" value="200" step="0.01" required>
+          </div>
+
+          <div class="form-group mb-4">
+            <label class="form-label">Notification Methods</label>
+            <div class="notification-methods">
+              <button type="button" class="method-btn active" data-method="push">
+                <i class="fas fa-bell"></i>
+                <span>Push</span>
+              </button>
+              <button type="button" class="method-btn" data-method="email">
+                <i class="fas fa-envelope"></i>
+                <span>Email</span>
+              </button>
+              <button type="button" class="method-btn" data-method="sms">
+                <i class="fas fa-mobile-alt"></i>
+                <span>SMS</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group mb-4">
+            <label class="form-label">Expiration</label>
+            <select id="alertExpiration" class="form-control">
+              <option value="24h">24 Hours</option>
+              <option value="7d">7 Days</option>
+              <option value="30d" selected>30 Days</option>
+              <option value="permanent">Permanent</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fas fa-bell"></i> Create Alert
+          </button>
+        </form>
+      </div>
+
+      <!-- Active Alerts -->
+      <div class="active-alerts-card">
+        <div class="active-alerts-header">
+          <h2><i class="fas fa-list"></i> Active Alerts</h2>
+          <div class="alert-filters">
+            <button class="alert-filter active" data-filter="all">All</button>
+            <button class="alert-filter" data-filter="price">Price</button>
+            <button class="alert-filter" data-filter="volume">Volume</button>
+            <button class="alert-filter" data-filter="news">News</button>
+          </div>
+        </div>
+
+        <div class="alerts-list" id="activeAlertsList">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert History -->
+    <div class="history-section" data-aos="fade-up" data-aos-delay="200">
+      <h3><i class="fas fa-history"></i> Alert History</h3>
+      <div class="history-list" id="alertHistory">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- AOS Animation -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+<script>
+// AOS Initialization
+AOS.init({
+  duration: 800,
+  once: true
+});
+
+// Configuration
+const CONFIG = {
+  NOTIFICATION_DURATION: 4000,
+  YFINANCE_PROXY: 'https://query1.finance.yahoo.com/v8/finance/chart/'
+};
+
+// App State
+let alerts = JSON.parse(localStorage.getItem('alerts')) || [];
+let alertHistory = JSON.parse(localStorage.getItem('alertHistory')) || [];
+
+// Default alerts if none exist
+if (alerts.length === 0) {
+  alerts = [
+    {
+      id: Date.now() - 86400000,
+      symbol: 'AAPL',
+      type: 'price',
+      condition: 'above',
+      value: 200,
+      methods: ['push', 'email'],
+      createdAt: new Date(Date.now() - 86400000).toISOString(),
+      expiresAt: new Date(Date.now() + 2592000000).toISOString(),
+      status: 'pending'
+    },
+    {
+      id: Date.now() - 172800000,
+      symbol: 'TSLA',
+      type: 'price',
+      condition: 'below',
+      value: 220,
+      methods: ['push'],
+      createdAt: new Date(Date.now() - 172800000).toISOString(),
+      expiresAt: new Date(Date.now() + 604800000).toISOString(),
+      status: 'pending'
+    },
+    {
+      id: Date.now() - 259200000,
+      symbol: 'NVDA',
+      type: 'volume',
+      condition: 'above',
+      value: 50000000,
+      methods: ['email'],
+      createdAt: new Date(Date.now() - 259200000).toISOString(),
+      expiresAt: new Date(Date.now() + 2592000000).toISOString(),
+      status: 'pending'
+    }
+  ];
+  saveAlerts();
+}
+
+// Default history if none exist
+if (alertHistory.length === 0) {
+  alertHistory = [
+    {
+      id: Date.now() - 3600000,
+      symbol: 'MSFT',
+      message: 'Price crossed above $420',
+      price: 425.50,
+      triggeredAt: new Date(Date.now() - 3600000).toISOString()
+    },
+    {
+      id: Date.now() - 7200000,
+      symbol: 'AMZN',
+      message: 'Volume exceeded 10M shares',
+      price: 178.22,
+      triggeredAt: new Date(Date.now() - 7200000).toISOString()
+    },
+    {
+      id: Date.now() - 86400000,
+      symbol: 'GOOGL',
+      message: 'News alert: New AI features announced',
+      price: 172.34,
+      triggeredAt: new Date(Date.now() - 86400000).toISOString()
+    }
+  ];
+  saveHistory();
+}
+
+// Theme Manager
+class ThemeManager {
+  static toggle() {
+    document.body.classList.toggle('light-theme');
+    localStorage.setItem('theme', document.body.classList.contains('light-theme') ? 'light' : 'dark');
+    this.showNotification('Theme changed', 'success');
+  }
+
+  static load() {
+    if (localStorage.getItem('theme') === 'light') {
+      document.body.classList.add('light-theme');
+    }
+  }
+
+  static showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+      <div class="notification-content">
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                         type === 'error' ? 'fa-exclamation-circle' : 
+                         type === 'warning' ? 'fa-exclamation-triangle' : 
+                         'fa-info-circle'} notification-icon"></i>
+        <span class="notification-message">${message}</span>
+        <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.classList.add('show'), 10);
+    setTimeout(() => notification.remove(), CONFIG.NOTIFICATION_DURATION);
+  }
+}
+
+// Mobile Menu
+class MobileMenu {
+  constructor() {
+    this.menuToggle = document.querySelector('.menu-toggle');
+    this.navItems = document.querySelector('.nav-items');
+    this.init();
+  }
+
+  init() {
+    this.menuToggle?.addEventListener('click', () => {
+      this.navItems.classList.toggle('show');
+      this.menuToggle.classList.toggle('active');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.navbar') && this.navItems.classList.contains('show')) {
+        this.navItems.classList.remove('show');
+        this.menuToggle.classList.remove('active');
+      }
+    });
+  }
+}
+
+// Save to localStorage
+function saveAlerts() {
+  localStorage.setItem('alerts', JSON.stringify(alerts));
+  updateStats();
+}
+
+function saveHistory() {
+  localStorage.setItem('alertHistory', JSON.stringify(alertHistory));
+}
+
+// Update stats
+function updateStats() {
+  const activeCount = alerts.filter(a => a.status === 'pending').length;
+  const triggeredToday = alertHistory.filter(h => {
+    const date = new Date(h.triggeredAt);
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  }).length;
+  
+  document.getElementById('activeAlertsCount').textContent = activeCount;
+  document.getElementById('triggeredToday').textContent = triggeredToday;
+  document.getElementById('totalAlerts').textContent = alertHistory.length;
+}
+
+// Render active alerts
+function renderAlerts(filter = 'all') {
+  const container = document.getElementById('activeAlertsList');
+  if (!container) return;
+  
+  const filteredAlerts = alerts.filter(a => filter === 'all' || a.type === filter);
+  
+  if (filteredAlerts.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <i class="fas fa-bell-slash"></i>
+        <h3>No Active Alerts</h3>
+        <p class="text-muted">Create your first alert using the form</p>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = filteredAlerts.map(alert => `
+    <div class="alert-item ${alert.status}">
+      <div class="alert-item-header">
+        <div>
+          <span class="alert-symbol">${alert.symbol}</span>
+          <span class="alert-type-badge ${alert.type}">${alert.type.toUpperCase()}</span>
+          <span class="alert-condition ${alert.condition}">${alert.condition}</span>
+        </div>
+        <div class="alert-time">
+          <i class="far fa-clock"></i>
+          ${timeAgo(alert.createdAt)}
+        </div>
+      </div>
+      
+      <div class="alert-details">
+        <div class="alert-detail">
+          <span class="label">Target</span>
+          <span class="value">${alert.type === 'price' ? '$' : ''}${alert.value.toLocaleString()}${alert.type === 'volume' ? ' shares' : ''}</span>
+        </div>
+        <div class="alert-detail">
+          <span class="label">Expires</span>
+          <span class="value">${formatDate(alert.expiresAt)}</span>
+        </div>
+        <div class="alert-detail">
+          <span class="label">Status</span>
+          <span class="value" style="color: ${alert.status === 'pending' ? 'var(--warning)' : 'var(--success)'}">${alert.status.toUpperCase()}</span>
+        </div>
+      </div>
+      
+      <div class="alert-footer">
+        <div class="alert-methods">
+          ${alert.methods.includes('push') ? '<span class="alert-method active"><i class="fas fa-bell"></i></span>' : ''}
+          ${alert.methods.includes('email') ? '<span class="alert-method active"><i class="fas fa-envelope"></i></span>' : ''}
+          ${alert.methods.includes('sms') ? '<span class="alert-method active"><i class="fas fa-mobile-alt"></i></span>' : ''}
+        </div>
+        
+        <div class="alert-actions">
+          <button class="alert-edit" onclick="editAlert('${alert.id}')" title="Edit">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button class="alert-delete" onclick="deleteAlert('${alert.id}')" title="Delete">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Render history
+function renderHistory() {
+  const container = document.getElementById('alertHistory');
+  if (!container) return;
+  
+  if (alertHistory.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <i class="fas fa-clock"></i>
+        <h3>No Alert History</h3>
+        <p class="text-muted">Triggered alerts will appear here</p>
+      </div>
+    `;
+    return;
+  }
+  
+  container.innerHTML = alertHistory.slice(0, 6).map(history => `
+    <div class="history-item">
+      <div class="history-item-header">
+        <span class="history-symbol">${history.symbol}</span>
+        <span class="history-time">${timeAgo(history.triggeredAt)}</span>
+      </div>
+      <div class="history-message">${history.message}</div>
+      <div class="history-price">at $${history.price.toFixed(2)}</div>
+    </div>
+  `).join('');
+}
+
+// Helper functions
+function timeAgo(timestamp) {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const seconds = Math.floor((now - date) / 1000);
+  
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+  if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+  return Math.floor(seconds / 86400) + 'd ago';
+}
+
+function formatDate(timestamp) {
+  const date = new Date(timestamp);
+  return date.toLocaleDateString();
+}
+
+// Create new alert
+document.getElementById('createAlertForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  
+  const symbol = document.getElementById('alertSymbol').value.trim().toUpperCase();
+  const type = document.querySelector('.alert-type-btn.active').dataset.type;
+  const condition = document.querySelector('.condition-btn.active')?.dataset.condition || 'above';
+  const value = parseFloat(document.getElementById('alertValue').value);
+  const methods = Array.from(document.querySelectorAll('.method-btn.active')).map(btn => btn.dataset.method);
+  const expiration = document.getElementById('alertExpiration').value;
+  
+  if (!symbol) {
+    ThemeManager.showNotification('Please enter a stock symbol', 'error');
+    return;
+  }
+  
+  if (isNaN(value) || value <= 0) {
+    ThemeManager.showNotification('Please enter a valid target value', 'error');
+    return;
+  }
+  
+  if (methods.length === 0) {
+    ThemeManager.showNotification('Select at least one notification method', 'error');
+    return;
+  }
+  
+  // Calculate expiration date
+  const now = new Date();
+  let expiresAt;
+  switch(expiration) {
+    case '24h':
+      expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      break;
+    case '7d':
+      expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      break;
+    case '30d':
+      expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      break;
+    case 'permanent':
+      expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000 * 10); // 10 years
+      break;
+  }
+  
+  const newAlert = {
+    id: Date.now().toString(),
+    symbol,
+    type,
+    condition,
+    value,
+    methods,
+    createdAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    status: 'pending'
+  };
+  
+  alerts.unshift(newAlert);
+  saveAlerts();
+  renderAlerts();
+  
+  ThemeManager.showNotification(`Alert created for ${symbol}`, 'success');
+  
+  // Reset form
+  e.target.reset();
+  document.getElementById('alertSymbol').value = 'AAPL';
+  document.getElementById('alertValue').value = '200';
+});
+
+// Delete alert
+function deleteAlert(id) {
+  if (confirm('Are you sure you want to delete this alert?')) {
+    alerts = alerts.filter(a => a.id !== id);
+    saveAlerts();
+    renderAlerts();
+    ThemeManager.showNotification('Alert deleted', 'success');
+  }
+}
+
+// Edit alert
+function editAlert(id) {
+  ThemeManager.showNotification('Edit feature coming soon', 'info');
+}
+
+// Alert type switching
+document.querySelectorAll('.alert-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.alert-type-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    
+    const type = btn.dataset.type;
+    const valueLabel = document.getElementById('valueLabel');
+    const conditionGroup = document.getElementById('conditionGroup');
+    
+    if (type === 'price') {
+      valueLabel.textContent = 'Target Price ($)';
+      conditionGroup.style.display = 'block';
+    } else if (type === 'volume') {
+      valueLabel.textContent = 'Volume (shares)';
+      conditionGroup.style.display = 'block';
+    } else {
+      valueLabel.textContent = 'News Keyword';
+      conditionGroup.style.display = 'none';
+    }
+  });
+});
+
+// Condition switching
+document.querySelectorAll('.condition-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.condition-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// Method switching
+document.querySelectorAll('.method-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    btn.classList.toggle('active');
+  });
+});
+
+// Filter switching
+document.querySelectorAll('.alert-filter').forEach(filter => {
+  filter.addEventListener('click', () => {
+    document.querySelectorAll('.alert-filter').forEach(f => f.classList.remove('active'));
+    filter.classList.add('active');
+    renderAlerts(filter.dataset.filter);
+  });
+});
+
+// Simulate alert triggering (for demo)
+function simulateAlertTrigger() {
+  const pendingAlerts = alerts.filter(a => a.status === 'pending');
+  if (pendingAlerts.length > 0 && Math.random() > 0.7) {
+    const randomAlert = pendingAlerts[Math.floor(Math.random() * pendingAlerts.length)];
+    
+    // Mark as triggered
+    randomAlert.status = 'triggered';
+    
+    // Add to history
+    const historyItem = {
+      id: Date.now(),
+      symbol: randomAlert.symbol,
+      message: `${randomAlert.type} alert: ${randomAlert.condition} ${randomAlert.value}`,
+      price: randomAlert.value * (0.95 + Math.random() * 0.1),
+      triggeredAt: new Date().toISOString()
+    };
+    
+    alertHistory.unshift(historyItem);
+    if (alertHistory.length > 50) alertHistory.pop();
+    
+    saveAlerts();
+    saveHistory();
+    renderAlerts();
+    renderHistory();
+    updateStats();
+    
+    ThemeManager.showNotification(`🔔 Alert triggered for ${randomAlert.symbol}`, 'success');
+  }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  ThemeManager.load();
+  new MobileMenu();
+  
+  renderAlerts();
+  renderHistory();
+  updateStats();
+  
+  // Simulate alerts every 30 seconds
+  setInterval(simulateAlertTrigger, 30000);
+});
+
+// Theme toggle
+function toggleTheme() {
+  ThemeManager.toggle();
+}
+
+// Make functions global
+window.toggleTheme = toggleTheme;
+window.deleteAlert = deleteAlert;
+window.editAlert = editAlert;
+</script>
+</body>
+</html>
