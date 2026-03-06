@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Market News - AlphaAnalytics</title>
+  
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- AOS Animation -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  
+  <!-- Shared CSS -->
+  <link rel="stylesheet" href="/static/css/alpha-analytics.css">
+  
+  <style>
+    /* Page-specific styles */
+    .news-header {
+      background: linear-gradient(135deg, var(--card-bg), var(--darker-bg));
+      border-radius: var(--radius-xl);
+      padding: 32px;
+      margin-bottom: 32px;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .news-header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--gradient-info);
+    }
+
+    .news-header h1 {
+      font-family: var(--font-display);
+      font-size: 36px;
+      margin-bottom: 8px;
+      background: var(--gradient-info);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .news-header p {
+      color: var(--text-secondary);
+      font-size: 16px;
+      max-width: 600px;
+    }
+
+    .news-layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    @media (max-width: 1024px) {
+      .news-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Main News Feed */
+    .main-news {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .featured-news {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      transition: all 0.3s;
+      position: relative;
+    }
+
+    .featured-news:hover {
+      transform: translateY(-5px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--info);
+    }
+
+    .featured-news-image {
+      height: 300px;
+      background: linear-gradient(135deg, var(--primary), var(--info));
+      position: relative;
+      overflow: hidden;
+    }
+
+    .featured-news-image::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 0 L100 100 M100 0 L0 100" stroke="rgba(255,255,255,0.1)" stroke-width="2"/></svg>');
+      opacity: 0.2;
+    }
+
+    .featured-news-content {
+      padding: 24px;
+    }
+
+    .featured-news-category {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      background: var(--info);
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .featured-news-title {
+      font-size: 28px;
+      font-weight: 700;
+      font-family: var(--font-display);
+      margin-bottom: 12px;
+      line-height: 1.3;
+    }
+
+    .featured-news-summary {
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    .featured-news-meta {
+      display: flex;
+      gap: 20px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .news-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .news-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .news-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    .news-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--info);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .news-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .news-card-source {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .news-source-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--darker-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--info);
+    }
+
+    .news-source-name {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .news-time {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .news-card-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .news-card-summary {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .news-card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .news-tags {
+      display: flex;
+      gap: 8px;
+    }
+
+    .news-tag {
+      padding: 4px 8px;
+      border-radius: var(--radius-full);
+      background: var(--darker-bg);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .news-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .news-action {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--darker-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .news-action:hover {
+      background: var(--info);
+      color: white;
+    }
+
+    /* Sidebar */
+    .news-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .sidebar-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    .sidebar-card h3 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sidebar-card h3 i {
+      color: var(--info);
+    }
+
+    /* Trending Topics */
+    .trending-list {
+      list-style: none;
+    }
+
+    .trending-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .trending-item:last-child {
+      border-bottom: none;
+    }
+
+    .trending-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .trending-rank {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--darker-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .trending-topic {
+      font-weight: 600;
+    }
+
+    .trending-count {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Market Sentiment */
+    .sentiment-meter {
+      height: 8px;
+      background: var(--border);
+      border-radius: var(--radius-full);
+      margin: 16px 0;
+      overflow: hidden;
+    }
+
+    .sentiment-fill {
+      height: 100%;
+      background: var(--gradient-success);
+      border-radius: var(--radius-full);
+      width: 65%;
+    }
+
+    .sentiment-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      text-align: center;
+    }
+
+    .sentiment-stat .label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .sentiment-stat .value {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    /* Upcoming Events */
+    .event-item {
+      display: flex;
+      gap: 16px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .event-item:last-child {
+      border-bottom: none;
+    }
+
+    .event-date {
+      min-width: 60px;
+      text-align: center;
+    }
+
+    .event-date .day {
+      font-size: 20px;
+      font-weight: 700;
+      font-family: var(--font-display);
+      color: var(--info);
+    }
+
+    .event-date .month {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .event-details {
+      flex: 1;
+    }
+
+    .event-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .event-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Newsletters */
+    .newsletter-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .newsletter-input {
+      padding: 12px 16px;
+      background: var(--darker-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+    }
+
+    .newsletter-input:focus {
+      outline: none;
+      border-color: var(--info);
+    }
+
+    /* Categories */
+    .categories-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .category-tag {
+      padding: 8px 16px;
+      border-radius: var(--radius-full);
+      background: var(--darker-bg);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .category-tag:hover {
+      border-color: var(--info);
+      color: var(--info);
+    }
+
+    .category-tag.active {
+      background: var(--info);
+      color: white;
+      border-color: var(--info);
+    }
+
+    /* Load More */
+    .load-more {
+      text-align: center;
+      margin-top: 32px;
+    }
+
+    .load-more-btn {
+      padding: 14px 32px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      color: var(--text-primary);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .load-more-btn:hover {
+      border-color: var(--info);
+      color: var(--info);
+      transform: translateY(-2px);
+    }
+
+    @media (max-width: 768px) {
+      .featured-news-image {
+        height: 200px;
+      }
+      
+      .featured-news-title {
+        font-size: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="nav-row">
+      <div class="logo">
+        <i class="fas fa-chart-line"></i>
+        AlphaAnalytics
+      </div>
+      
+      <button class="menu-toggle" aria-label="Toggle menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <nav class="nav-items">
+        <a href="/jeet" class="nav-item"><i class="fas fa-home"></i>Dashboard</a>
+        <a href="/portfolio" class="nav-item"><i class="fas fa-briefcase"></i>Portfolio</a>
+        <a href="/mystock" class="nav-item"><i class="fas fa-star"></i>My Stock</a>
+        <a href="/deposit" class="nav-item"><i class="fas fa-wallet"></i>Deposit</a>
+        <a href="/insight" class="nav-item"><i class="fas fa-brain"></i>Insight</a>
+        <a href="/prediction" class="nav-item"><i class="fas fa-chart-line"></i>Prediction</a>
+        <a href="/news" class="nav-item active"><i class="fas fa-newspaper"></i>News</a>
+        <a href="/videos" class="nav-item"><i class="fas fa-video"></i>Videos</a>
+        <a href="/superstars" class="nav-item"><i class="fas fa-star"></i>Superstars</a>
+        <a href="/alerts" class="nav-item"><i class="fas fa-bell"></i>Alerts</a>
+        <a href="/help" class="nav-item"><i class="fas fa-question-circle"></i>Help</a>
+        <a href="/profile" class="nav-item"><i class="fas fa-user"></i>Profile</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- News Header -->
+    <div class="news-header" data-aos="fade-up">
+      <h1><i class="fas fa-newspaper"></i> Market News</h1>
+      <p>Stay updated with the latest financial news, market-moving events, and expert analysis</p>
+    </div>
+
+    <!-- News Layout -->
+    <div class="news-layout" data-aos="fade-up" data-aos-delay="100">
+      <!-- Main News Feed -->
+      <div class="main-news">
+        <!-- Featured News -->
+        <div class="featured-news">
+          <div class="featured-news-image"></div>
+          <div class="featured-news-content">
+            <span class="featured-news-category">Breaking News</span>
+            <h2 class="featured-news-title">Fed Signals Potential Rate Cuts as Inflation Eases</h2>
+            <p class="featured-news-summary">Federal Reserve Chair Jerome Powell indicates possibility of rate cuts in 2024 as inflation shows signs of cooling. Markets rally on dovish stance.</p>
+            <div class="featured-news-meta">
+              <span><i class="far fa-clock"></i> 2 hours ago</span>
+              <span><i class="far fa-newspaper"></i> Reuters</span>
+              <span><i class="far fa-eye"></i> 12.5K views</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- News Grid -->
+        <div class="news-grid" id="newsGrid">
+          <!-- Populated by JavaScript -->
+        </div>
+
+        <!-- Load More -->
+        <div class="load-more">
+          <button class="load-more-btn" onclick="loadMoreNews()">
+            <i class="fas fa-sync-alt"></i> Load More News
+          </button>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="news-sidebar">
+        <!-- Categories -->
+        <div class="sidebar-card">
+          <h3><i class="fas fa-filter"></i> Categories</h3>
+          <div class="categories-list">
+            <button class="category-tag active" data-category="all">All News</button>
+            <button class="category-tag" data-category="markets">Markets</button>
+            <button class="category-tag" data-category="stocks">Stocks</button>
+            <button class="category-tag" data-category="crypto">Crypto</button>
+            <button class="category-tag" data-category="economy">Economy</button>
+            <button class="category-tag" data-category="earnings">Earnings</button>
+            <button class="category-tag" data-category="tech">Technology</button>
+          </div>
+        </div>
+
+        <!-- Trending Topics -->
+        <div class="sidebar-card">
+          <h3><i class="fas fa-fire"></i> Trending Topics</h3>
+          <ul class="trending-list" id="trendingTopics">
+            <!-- Populated by JavaScript -->
+          </ul>
+        </div>
+
+        <!-- Market Sentiment -->
+        <div class="sidebar-card">
+          <h3><i class="fas fa-chart-line"></i> Market Sentiment</h3>
+          <div class="sentiment-meter">
+            <div class="sentiment-fill" style="width: 65%;"></div>
+          </div>
+          <div class="sentiment-stats">
+            <div class="sentiment-stat">
+              <div class="label">Bullish</div>
+              <div class="value">65%</div>
+            </div>
+            <div class="sentiment-stat">
+              <div class="label">Neutral</div>
+              <div class="value">20%</div>
+            </div>
+            <div class="sentiment-stat">
+              <div class="label">Bearish</div>
+              <div class="value">15%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upcoming Events -->
+        <div class="sidebar-card">
+          <h3><i class="fas fa-calendar-alt"></i> Upcoming Events</h3>
+          <div id="upcomingEvents">
+            <!-- Populated by JavaScript -->
+          </div>
+        </div>
+
+        <!-- Newsletter -->
+        <div class="sidebar-card">
+          <h3><i class="fas fa-envelope"></i> Newsletter</h3>
+          <p class="text-muted mb-3">Get the latest news delivered to your inbox</p>
+          <form class="newsletter-form" onsubmit="subscribeNewsletter(event)">
+            <input type="email" class="newsletter-input" placeholder="Your email address" required>
+            <button type="submit" class="btn btn-primary w-100">Subscribe</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- AOS Animation -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+<script>
+// AOS Initialization
+AOS.init({
+  duration: 800,
+  once: true
+});
+
+// Configuration
+const CONFIG = {
+  NOTIFICATION_DURATION: 4000
+};
+
+// News Data
+const newsData = [
+  {
+    id: 1,
+    title: "NVIDIA Unveils Next-Gen AI Chips, Stock Surges 8%",
+    summary: "NVIDIA announces new Blackwell platform, claiming 30x performance boost for AI workloads.",
+    source: "TechCrunch",
+    sourceIcon: "fab fa-bitcoin",
+    time: "15 min ago",
+    category: "tech",
+    tags: ["NVDA", "AI", "Earnings"],
+    views: "8.2K",
+    image: null
+  },
+  {
+    id: 2,
+    title: "Tesla Deliveries Beat Estimates, China Sales Rise",
+    summary: "Tesla reports Q1 deliveries exceeding expectations, driven by strong demand in China.",
+    source: "Reuters",
+    sourceIcon: "fas fa-newspaper",
+    time: "32 min ago",
+    category: "stocks",
+    tags: ["TSLA", "EV", "China"],
+    views: "5.7K",
+    image: null
+  },
+  {
+    id: 3,
+    title: "Apple's AI Push: What to Expect at WWDC 2024",
+    summary: "Apple expected to announce major AI features across iOS, macOS, and new developer tools.",
+    source: "Bloomberg",
+    sourceIcon: "fas fa-chart-line",
+    time: "1 hour ago",
+    category: "tech",
+    tags: ["AAPL", "AI", "WWDC"],
+    views: "12.1K",
+    image: null
+  },
+  {
+    id: 4,
+    title: "Oil Prices Jump as OPEC+ Extends Production Cuts",
+    summary: "OPEC+ agrees to extend voluntary production cuts through Q3, sending oil prices higher.",
+    source: "WSJ",
+    sourceIcon: "fas fa-newspaper",
+    time: "2 hours ago",
+    category: "economy",
+    tags: ["Oil", "OPEC", "Commodities"],
+    views: "4.3K",
+    image: null
+  },
+  {
+    id: 5,
+    title: "Bitcoin Surges Past $70K as ETFs See Record Inflows",
+    summary: "Bitcoin reaches new all-time high as spot Bitcoin ETFs record largest daily inflows since launch.",
+    source: "CoinDesk",
+    sourceIcon: "fab fa-bitcoin",
+    time: "3 hours ago",
+    category: "crypto",
+    tags: ["BTC", "Crypto", "ETF"],
+    views: "15.8K",
+    image: null
+  },
+  {
+    id: 6,
+    title: "Microsoft's Cloud Revenue Growth Accelerates",
+    summary: "Azure growth beats expectations as AI services drive cloud adoption.",
+    source: "CNBC",
+    sourceIcon: "fas fa-tv",
+    time: "4 hours ago",
+    category: "tech",
+    tags: ["MSFT", "Cloud", "AI"],
+    views: "6.9K",
+    image: null
+  }
+];
+
+const trendingTopics = [
+  { topic: "NVIDIA", count: "2.5K", rank: 1 },
+  { topic: "Bitcoin", count: "1.8K", rank: 2 },
+  { topic: "Fed Rate Cuts", count: "1.2K", rank: 3 },
+  { topic: "Tesla", count: "980", rank: 4 },
+  { topic: "Apple AI", count: "850", rank: 5 },
+  { topic: "Oil Prices", count: "720", rank: 6 }
+];
+
+const upcomingEvents = [
+  { day: 15, month: "MAR", title: "Fed Interest Rate Decision", type: "Central Bank", impact: "high" },
+  { day: 18, month: "MAR", title: "CPI Data Release", type: "Economic Data", impact: "high" },
+  { day: 22, month: "MAR", title: "AAPL Product Launch", type: "Company Event", impact: "medium" },
+  { day: 28, month: "MAR", title: "NVDA Earnings", type: "Earnings", impact: "high" }
+];
+
+// Theme Manager
+class ThemeManager {
+  static toggle() {
+    document.body.classList.toggle('light-theme');
+    localStorage.setItem('theme', document.body.classList.contains('light-theme') ? 'light' : 'dark');
+    this.showNotification('Theme changed', 'success');
+  }
+
+  static load() {
+    if (localStorage.getItem('theme') === 'light') {
+      document.body.classList.add('light-theme');
+    }
+  }
+
+  static showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+      <div class="notification-content">
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                         type === 'error' ? 'fa-exclamation-circle' : 
+                         type === 'warning' ? 'fa-exclamation-triangle' : 
+                         'fa-info-circle'} notification-icon"></i>
+        <span class="notification-message">${message}</span>
+        <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.classList.add('show'), 10);
+    setTimeout(() => notification.remove(), CONFIG.NOTIFICATION_DURATION);
+  }
+}
+
+// Mobile Menu
+class MobileMenu {
+  constructor() {
+    this.menuToggle = document.querySelector('.menu-toggle');
+    this.navItems = document.querySelector('.nav-items');
+    this.init();
+  }
+
+  init() {
+    this.menuToggle?.addEventListener('click', () => {
+      this.navItems.classList.toggle('show');
+      this.menuToggle.classList.toggle('active');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.navbar') && this.navItems.classList.contains('show')) {
+        this.navItems.classList.remove('show');
+        this.menuToggle.classList.remove('active');
+      }
+    });
+  }
+}
+
+// Render News Grid
+function renderNews(category = 'all') {
+  const grid = document.getElementById('newsGrid');
+  if (!grid) return;
+  
+  const filteredNews = category === 'all' 
+    ? newsData 
+    : newsData.filter(n => n.category === category);
+  
+  grid.innerHTML = filteredNews.map(news => `
+    <div class="news-card" onclick="openNews('${news.id}')">
+      <div class="news-card-header">
+        <div class="news-card-source">
+          <div class="news-source-icon">
+            <i class="${news.sourceIcon}"></i>
+          </div>
+          <span class="news-source-name">${news.source}</span>
+        </div>
+        <span class="news-time"><i class="far fa-clock"></i> ${news.time}</span>
+      </div>
+      
+      <h4 class="news-card-title">${news.title}</h4>
+      <p class="news-card-summary">${news.summary}</p>
+      
+      <div class="news-card-footer">
+        <div class="news-tags">
+          ${news.tags.map(tag => `<span class="news-tag">${tag}</span>`).join('')}
+        </div>
+        
+        <div class="news-actions">
+          <span class="news-action" onclick="event.stopPropagation(); shareNews('${news.id}')" title="Share">
+            <i class="fas fa-share-alt"></i>
+          </span>
+          <span class="news-action" onclick="event.stopPropagation(); bookmarkNews('${news.id}')" title="Save">
+            <i class="far fa-bookmark"></i>
+          </span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Render Trending Topics
+function renderTrending() {
+  const container = document.getElementById('trendingTopics');
+  if (!container) return;
+  
+  container.innerHTML = trendingTopics.map(topic => `
+    <li class="trending-item">
+      <div class="trending-info">
+        <span class="trending-rank">#${topic.rank}</span>
+        <span class="trending-topic">${topic.topic}</span>
+      </div>
+      <span class="trending-count">${topic.count} posts</span>
+    </li>
+  `).join('');
+}
+
+// Render Upcoming Events
+function renderEvents() {
+  const container = document.getElementById('upcomingEvents');
+  if (!container) return;
+  
+  container.innerHTML = upcomingEvents.map(event => `
+    <div class="event-item">
+      <div class="event-date">
+        <div class="day">${event.day}</div>
+        <div class="month">${event.month}</div>
+      </div>
+      <div class="event-details">
+        <div class="event-title">${event.title}</div>
+        <div class="event-meta">
+          <span>${event.type}</span>
+          <span class="badge badge-${event.impact}">${event.impact} impact</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Category filtering
+document.querySelectorAll('.category-tag').forEach(tag => {
+  tag.addEventListener('click', () => {
+    document.querySelectorAll('.category-tag').forEach(t => t.classList.remove('active'));
+    tag.classList.add('active');
+    renderNews(tag.dataset.category);
+  });
+});
+
+// News actions
+function openNews(id) {
+  ThemeManager.showNotification('Opening news article...', 'info');
+  // In a real app, this would open the full article
+}
+
+function shareNews(id) {
+  ThemeManager.showNotification('Share feature coming soon', 'info');
+}
+
+function bookmarkNews(id) {
+  ThemeManager.showNotification('Article saved to bookmarks', 'success');
+}
+
+// Load more news
+function loadMoreNews() {
+  ThemeManager.showNotification('Loading more news...', 'info');
+  setTimeout(() => {
+    ThemeManager.showNotification('5 new articles loaded', 'success');
+  }, 1500);
+}
+
+// Newsletter subscription
+function subscribeNewsletter(event) {
+  event.preventDefault();
+  const email = event.target.querySelector('input[type="email"]').value;
+  ThemeManager.showNotification(`Subscribed with ${email}`, 'success');
+  event.target.reset();
+}
+
+// Theme toggle
+function toggleTheme() {
+  ThemeManager.toggle();
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  ThemeManager.load();
+  new MobileMenu();
+  
+  renderNews();
+  renderTrending();
+  renderEvents();
+});
+
+// Make functions global
+window.toggleTheme = toggleTheme;
+window.openNews = openNews;
+window.shareNews = shareNews;
+window.bookmarkNews = bookmarkNews;
+window.loadMoreNews = loadMoreNews;
+window.subscribeNewsletter = subscribeNewsletter;
+</script>
+</body>
+</html>
