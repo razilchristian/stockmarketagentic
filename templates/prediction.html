@@ -245,6 +245,23 @@
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
   }
+
+  .live-badge {
+    background: var(--success);
+    color: white;
+    padding: 4px 8px;
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+    animation: pulse 2s infinite;
+  }
+
+  .price-updated {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
 </style>
 </head>
 <body>
@@ -284,7 +301,7 @@
   <main>
     <!-- Header -->
     <div class="header">
-      <h1><i class="fas fa-brain"></i> AI Stock Predictions</h1>
+      <h1><i class="fas fa-brain"></i> AI Stock Predictions <span class="live-badge">LIVE</span></h1>
       <div class="header-controls">
         <div class="search-container">
           <i class="fas fa-search search-icon"></i>
@@ -292,6 +309,9 @@
         </div>
         <button class="btn btn-secondary" id="themeBtn">
           <i class="fas fa-palette"></i>Theme
+        </button>
+        <button class="btn btn-primary" id="refreshLiveBtn">
+          <i class="fas fa-sync-alt"></i> Refresh Live
         </button>
       </div>
     </div>
@@ -310,9 +330,10 @@
     <!-- Quick Metrics -->
     <div class="grid grid-4" id="quickMetrics" data-aos="fade-up" data-aos-delay="100">
       <div class="metric-card">
-        <div class="metric-label">Current Price</div>
+        <div class="metric-label">Current Price <span class="live-badge" style="font-size: 9px;">LIVE</span></div>
         <div class="metric-value" id="metricPrice">—</div>
         <div class="metric-change" id="metricChange"></div>
+        <div class="price-updated" id="priceUpdateTime"></div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Volatility</div>
@@ -381,6 +402,30 @@
       </div>
     </div>
 
+    <!-- Day Range & 52-Week Range -->
+    <div class="grid grid-2" style="margin-bottom: 24px;" data-aos="fade-up" data-aos-delay="250">
+      <div class="metric-card">
+        <div class="metric-label">Today's Range</div>
+        <div class="flex justify-between">
+          <span>Low: <strong id="dayLow">—</strong></span>
+          <span>High: <strong id="dayHigh">—</strong></span>
+        </div>
+        <div class="progress mt-2" style="height: 6px;">
+          <div class="progress-bar" id="dayRangeProgress" style="width: 50%;"></div>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">52-Week Range</div>
+        <div class="flex justify-between">
+          <span>Low: <strong id="weekLow">—</strong></span>
+          <span>High: <strong id="weekHigh">—</strong></span>
+        </div>
+        <div class="progress mt-2" style="height: 6px;">
+          <div class="progress-bar" id="weekRangeProgress" style="width: 50%;"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Risk Analysis -->
     <div class="risk-section" id="riskSection" style="display: none;" data-aos="fade-up" data-aos-delay="300">
       <h3 class="mb-4"><i class="fas fa-shield-alt"></i> Risk Analysis</h3>
@@ -408,7 +453,7 @@ AOS.init({
 const CONFIG = {
   API_BASE_URL: window.location.origin,
   NOTIFICATION_DURATION: 4000,
-  YFINANCE_PROXY: 'https://query1.finance.yahoo.com/v8/finance/chart/'
+  LIVE_UPDATE_INTERVAL: 30000 // 30 seconds
 };
 
 // App State
@@ -432,7 +477,9 @@ const AppState = {
   selectedStock: null,
   isGenerating: false,
   chart: null,
-  stockPrices: {}
+  liveData: {},
+  lastPredictData: null,
+  liveUpdateInterval: null
 };
 
 // Theme Manager
@@ -493,86 +540,38 @@ class MobileMenu {
   }
 }
 
-// Yahoo Finance API Service
-class YahooFinanceService {
-  static async fetchQuote(symbol) {
+// Live Data Service - USING YOUR NEW BACKEND ENDPOINT
+class LiveDataService {
+  static async fetchLiveQuote(symbol) {
     try {
-      // Use yfinance proxy endpoint
-      const response = await fetch(`${CONFIG.YFINANCE_PROXY}${symbol}?interval=1d&range=1d`);
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/live-quote/${symbol}`);
+      if (!response.ok) throw new Error('Failed to fetch live data');
       const data = await response.json();
-      
-      if (data.chart && data.chart.result && data.chart.result[0]) {
-        const result = data.chart.result[0];
-        const meta = result.meta;
-        const quote = result.indicators.quote[0];
-        
-        return {
-          symbol: meta.symbol,
-          price: meta.regularMarketPrice || meta.previousClose,
-          change: meta.regularMarketPrice - meta.previousClose,
-          changePercent: ((meta.regularMarketPrice - meta.previousClose) / meta.previousClose) * 100,
-          volume: quote.volume?.[0] || 0,
-          high: meta.regularMarketDayHigh || meta.dayHigh,
-          low: meta.regularMarketDayLow || meta.dayLow
-        };
-      }
-      throw new Error('No data available');
+      return data;
     } catch (error) {
-      console.error('Yahoo Finance error:', error);
-      // Return simulated data as fallback
-      return this.getFallbackData(symbol);
+      console.error('Live quote error:', error);
+      return null;
     }
   }
 
-  static getFallbackData(symbol) {
-    const basePrice = this.getBasePrice(symbol);
-    const change = (Math.random() - 0.5) * 4;
-    return {
-      symbol: symbol,
-      price: basePrice,
-      change: change,
-      changePercent: change,
-      volume: Math.floor(Math.random() * 10000000) + 1000000,
-      high: basePrice * 1.02,
-      low: basePrice * 0.98
-    };
-  }
-
-  static getBasePrice(symbol) {
-    const prices = {
-      'AAPL': 182.63,
-      'MSFT': 425.50,
-      'GOOGL': 172.34,
-      'AMZN': 178.22,
-      'TSLA': 245.75,
-      'NVDA': 950.02,
-      'META': 485.60,
-      'JPM': 195.18,
-      'V': 278.45,
-      'WMT': 168.30,
-      'RELIANCE.NS': 2856.50,
-      'TCS.NS': 3850.75,
-      'HDFCBANK.NS': 1670.25,
-      'INFY.NS': 1520.80
-    };
-    return prices[symbol] || 100.00;
-  }
-
-  static async fetchMultipleQuotes(symbols) {
-    const quotes = {};
-    await Promise.all(symbols.map(async (symbol) => {
-      try {
-        const quote = await this.fetchQuote(symbol);
-        quotes[symbol] = quote;
-      } catch (error) {
-        console.error(`Error fetching ${symbol}:`, error);
-      }
-    }));
-    return quotes;
+  static async fetchBatchQuotes(symbols) {
+    try {
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/batch-quote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbols: symbols })
+      });
+      if (!response.ok) throw new Error('Failed to fetch batch quotes');
+      const data = await response.json();
+      return data.quotes;
+    } catch (error) {
+      console.error('Batch quote error:', error);
+      return {};
+    }
   }
 }
 
-// Stock List Manager
+// Stock List Manager - UPDATED to use batch quotes
 class StockListManager {
   constructor() {
     this.listEl = document.getElementById('stockList');
@@ -581,14 +580,50 @@ class StockListManager {
   }
 
   async init() {
-    await this.loadPrices();
+    await this.loadAllPrices();
     this.render();
     this.searchEl?.addEventListener('input', () => this.filter());
   }
 
-  async loadPrices() {
+  async loadAllPrices() {
     const symbols = AppState.allStocks.map(s => s.symbol);
-    AppState.stockPrices = await YahooFinanceService.fetchMultipleQuotes(symbols);
+    const quotes = await LiveDataService.fetchBatchQuotes(symbols);
+    
+    AppState.liveData = {};
+    Object.keys(quotes).forEach(symbol => {
+      AppState.liveData[symbol] = quotes[symbol];
+    });
+  }
+
+  async updatePriceForSymbol(symbol) {
+    const quote = await LiveDataService.fetchLiveQuote(symbol);
+    if (quote) {
+      AppState.liveData[symbol] = quote;
+      this.updateStockItem(symbol);
+    }
+  }
+
+  updateStockItem(symbol) {
+    const items = document.querySelectorAll('.stock-item');
+    items.forEach(item => {
+      const symbolEl = item.querySelector('.symbol');
+      if (symbolEl && symbolEl.textContent === symbol) {
+        const quote = AppState.liveData[symbol];
+        const priceEl = item.querySelector('.stock-price');
+        const changeEl = item.querySelector('.stock-change');
+        
+        if (quote && priceEl) {
+          const isIndian = symbol.includes('.NS');
+          priceEl.textContent = (isIndian ? '₹' : '$') + (quote.current_price || quote.price || 0).toFixed(2);
+          
+          if (changeEl) {
+            const change = quote.change_percent || quote.changePercent || 0;
+            changeEl.textContent = (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+            changeEl.className = `stock-change ${change >= 0 ? 'badge-success' : 'badge-danger'}`;
+          }
+        }
+      }
+    });
   }
 
   render() {
@@ -605,9 +640,10 @@ class StockListManager {
     const item = document.createElement('div');
     item.className = 'stock-item';
     
-    const quote = AppState.stockPrices[stock.symbol] || { price: '--', changePercent: 0 };
-    const price = quote.price || '--';
-    const change = quote.changePercent || 0;
+    const quote = AppState.liveData[stock.symbol] || {};
+    const price = quote.current_price || 0;
+    const change = quote.change_percent || 0;
+    const isIndian = stock.symbol.includes('.NS');
     
     item.innerHTML = `
       <div class="stock-info">
@@ -615,9 +651,9 @@ class StockListManager {
         <div class="name">${stock.name}</div>
       </div>
       <div>
-        <div class="stock-price">${typeof price === 'number' ? (stock.symbol.includes('.NS') ? '₹' : '$') + price.toFixed(2) : price}</div>
+        <div class="stock-price">${price ? (isIndian ? '₹' : '$') + price.toFixed(2) : '—'}</div>
         <div class="stock-change ${change >= 0 ? 'badge-success' : 'badge-danger'}" style="margin-top: 4px;">
-          ${change > 0 ? '+' : ''}${typeof change === 'number' ? change.toFixed(2) + '%' : '--'}
+          ${change ? (change > 0 ? '+' : '') + change.toFixed(2) + '%' : '—'}
         </div>
       </div>
     `;
@@ -634,7 +670,52 @@ class StockListManager {
     
     AppState.selectedStock = stock;
     document.getElementById('selectedStock').textContent = `${stock.symbol} - ${stock.name}`;
-    this.resetDisplay();
+    
+    // Immediately update metrics with live data
+    this.updateSelectedStockMetrics();
+  }
+
+  async updateSelectedStockMetrics() {
+    if (!AppState.selectedStock) return;
+    
+    const quote = await LiveDataService.fetchLiveQuote(AppState.selectedStock.symbol);
+    if (quote) {
+      AppState.liveData[AppState.selectedStock.symbol] = quote;
+      this.updateMetricsWithLiveData(quote);
+    }
+  }
+
+  updateMetricsWithLiveData(quote) {
+    const isIndian = AppState.selectedStock.symbol.includes('.NS');
+    const currency = isIndian ? '₹' : '$';
+    
+    document.getElementById('metricPrice').textContent = currency + (quote.current_price || 0).toFixed(2);
+    document.getElementById('metricChange').textContent = 
+      (quote.change_percent > 0 ? '+' : '') + (quote.change_percent || 0).toFixed(2) + '%';
+    document.getElementById('metricChange').className = `metric-change ${quote.change_percent >= 0 ? 'positive' : 'negative'}`;
+    
+    document.getElementById('dayLow').textContent = currency + (quote.day_low || 0).toFixed(2);
+    document.getElementById('dayHigh').textContent = currency + (quote.day_high || 0).toFixed(2);
+    document.getElementById('weekLow').textContent = currency + (quote.week_52_low || 0).toFixed(2);
+    document.getElementById('weekHigh').textContent = currency + (quote.week_52_high || 0).toFixed(2);
+    
+    // Update progress bars
+    if (quote.day_low && quote.day_high && quote.current_price) {
+      const dayRange = quote.day_high - quote.day_low;
+      const dayPosition = ((quote.current_price - quote.day_low) / dayRange) * 100;
+      document.getElementById('dayRangeProgress').style.width = Math.min(100, Math.max(0, dayPosition)) + '%';
+    }
+    
+    if (quote.week_52_low && quote.week_52_high && quote.current_price) {
+      const weekRange = quote.week_52_high - quote.week_52_low;
+      const weekPosition = ((quote.current_price - quote.week_52_low) / weekRange) * 100;
+      document.getElementById('weekRangeProgress').style.width = Math.min(100, Math.max(0, weekPosition)) + '%';
+    }
+    
+    document.getElementById('priceUpdateTime').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+    
+    // Also update in stock list
+    this.updateStockItem(AppState.selectedStock.symbol);
   }
 
   filter() {
@@ -653,6 +734,10 @@ class StockListManager {
     document.getElementById('rsiStatus').textContent = '';
     document.getElementById('metricRisk').textContent = '—';
     document.getElementById('riskLevel').textContent = '';
+    document.getElementById('dayLow').textContent = '—';
+    document.getElementById('dayHigh').textContent = '—';
+    document.getElementById('weekLow').textContent = '—';
+    document.getElementById('weekHigh').textContent = '—';
     document.getElementById('aiInsight').textContent = 'Select a stock and click Predict for AI-powered analysis.';
     document.getElementById('riskSection').style.display = 'none';
     document.getElementById('indicatorsGrid').style.display = 'none';
@@ -666,17 +751,23 @@ class StockListManager {
   }
 }
 
-// Prediction Display
+// Prediction Display - UPDATED to use backend data
 class PredictionDisplay {
   static update(data) {
     if (!data) return;
+    
+    AppState.lastPredictData = data;
 
-    document.getElementById('metricPrice').textContent = 
-      `${data.symbol?.includes('.NS') ? '₹' : '$'}${data.current_price?.toFixed(2)}`;
+    const isIndian = data.symbol?.includes('.NS');
+    const currency = isIndian ? '₹' : '$';
+
+    document.getElementById('metricPrice').textContent = currency + (data.current_price || 0).toFixed(2);
     document.getElementById('metricChange').textContent = 
-      `${data.change_percent > 0 ? '+' : ''}${data.change_percent?.toFixed(2)}%`;
-    document.getElementById('metricVolatility').textContent = `${data.volatility?.toFixed(1)}%`;
-    document.getElementById('metricRSI').textContent = data.rsi?.toFixed(1);
+      (data.change_percent > 0 ? '+' : '') + (data.change_percent || 0).toFixed(2) + '%';
+    document.getElementById('metricChange').className = `metric-change ${data.change_percent >= 0 ? 'positive' : 'negative'}`;
+    
+    document.getElementById('metricVolatility').textContent = (data.volatility || 0).toFixed(1) + '%';
+    document.getElementById('metricRSI').textContent = (data.rsi || 0).toFixed(1);
     
     const rsi = data.rsi;
     let rsiStatus = '';
@@ -687,6 +778,26 @@ class PredictionDisplay {
     
     document.getElementById('aiInsight').textContent = data.ai_analysis || 'Analysis complete.';
     
+    // Update day range
+    if (data.day_high && data.day_low) {
+      document.getElementById('dayLow').textContent = currency + data.day_low.toFixed(2);
+      document.getElementById('dayHigh').textContent = currency + data.day_high.toFixed(2);
+      
+      const dayRange = data.day_high - data.day_low;
+      const dayPosition = ((data.current_price - data.day_low) / dayRange) * 100;
+      document.getElementById('dayRangeProgress').style.width = Math.min(100, Math.max(0, dayPosition)) + '%';
+    }
+    
+    // Update 52-week range
+    if (data.week_52_high && data.week_52_low) {
+      document.getElementById('weekLow').textContent = currency + data.week_52_low.toFixed(2);
+      document.getElementById('weekHigh').textContent = currency + data.week_52_high.toFixed(2);
+      
+      const weekRange = data.week_52_high - data.week_52_low;
+      const weekPosition = ((data.current_price - data.week_52_low) / weekRange) * 100;
+      document.getElementById('weekRangeProgress').style.width = Math.min(100, Math.max(0, weekPosition)) + '%';
+    }
+    
     if (data.risk_analysis) {
       document.getElementById('metricRisk').textContent = data.risk_analysis.risk_score;
       document.getElementById('riskLevel').textContent = data.risk_analysis.risk_level;
@@ -694,8 +805,8 @@ class PredictionDisplay {
     }
     
     if (data.prediction) {
-      this.updatePredictionGrid(data.prediction);
-      this.updateConfidenceChart(data.prediction, data.current_price);
+      this.updatePredictionGrid(data.prediction, currency);
+      this.updateConfidenceChart(data.prediction, data.current_price, currency);
     }
     
     if (data.prediction?.recommendation) {
@@ -708,9 +819,11 @@ class PredictionDisplay {
     if (data.technical_indicators) {
       this.updateIndicators(data.technical_indicators);
     }
+    
+    document.getElementById('priceUpdateTime').textContent = 'Updated: ' + new Date().toLocaleTimeString();
   }
 
-  static updatePredictionGrid(prediction) {
+  static updatePredictionGrid(prediction, currency = '$') {
     const grid = document.getElementById('predictionGrid');
     grid.innerHTML = '';
     
@@ -726,8 +839,8 @@ class PredictionDisplay {
         
         box.innerHTML = `
           <div class="prediction-box-label">${item.toUpperCase()}</div>
-          <div class="prediction-box-value">$${pred.value.toFixed(2)}</div>
-          <div class="prediction-box-range">$${pred.lower_bound.toFixed(2)} - $${pred.upper_bound.toFixed(2)}</div>
+          <div class="prediction-box-value">${currency}${pred.value.toFixed(2)}</div>
+          <div class="prediction-box-range">${currency}${pred.lower_bound.toFixed(2)} - ${currency}${pred.upper_bound.toFixed(2)}</div>
           <span class="badge ${confidenceClass} mt-2">${pred.confidence}% Confidence</span>
         `;
         
@@ -736,7 +849,7 @@ class PredictionDisplay {
     });
   }
 
-  static updateConfidenceChart(prediction, currentPrice) {
+  static updateConfidenceChart(prediction, currentPrice, currency = '$') {
     const ctx = document.getElementById('confidenceChart').getContext('2d');
     
     if (AppState.chart) {
@@ -799,12 +912,18 @@ class PredictionDisplay {
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { mode: 'index', intersect: false }
+          tooltip: { 
+            mode: 'index', 
+            intersect: false,
+            callbacks: {
+              label: (context) => currency + context.raw.toFixed(2)
+            }
+          }
         },
         scales: {
           y: {
             grid: { color: 'rgba(255,255,255,0.1)' },
-            ticks: { callback: v => '$' + v.toFixed(2) }
+            ticks: { callback: v => currency + v.toFixed(2) }
           }
         }
       }
@@ -920,27 +1039,97 @@ class PredictionManager {
   }
 }
 
+// Live Update Manager
+class LiveUpdateManager {
+  static startLiveUpdates(interval = CONFIG.LIVE_UPDATE_INTERVAL) {
+    if (AppState.liveUpdateInterval) {
+      clearInterval(AppState.liveUpdateInterval);
+    }
+    
+    AppState.liveUpdateInterval = setInterval(async () => {
+      await this.refreshLiveData();
+    }, interval);
+  }
+
+  static stopLiveUpdates() {
+    if (AppState.liveUpdateInterval) {
+      clearInterval(AppState.liveUpdateInterval);
+      AppState.liveUpdateInterval = null;
+    }
+  }
+
+  static async refreshLiveData() {
+    if (!AppState.selectedStock) return;
+    
+    try {
+      const quote = await LiveDataService.fetchLiveQuote(AppState.selectedStock.symbol);
+      if (quote) {
+        AppState.liveData[AppState.selectedStock.symbol] = quote;
+        
+        // Update metrics
+        const isIndian = AppState.selectedStock.symbol.includes('.NS');
+        const currency = isIndian ? '₹' : '$';
+        
+        document.getElementById('metricPrice').textContent = currency + (quote.current_price || 0).toFixed(2);
+        document.getElementById('metricChange').textContent = 
+          (quote.change_percent > 0 ? '+' : '') + (quote.change_percent || 0).toFixed(2) + '%';
+        document.getElementById('metricChange').className = `metric-change ${quote.change_percent >= 0 ? 'positive' : 'negative'}`;
+        
+        document.getElementById('dayLow').textContent = currency + (quote.day_low || 0).toFixed(2);
+        document.getElementById('dayHigh').textContent = currency + (quote.day_high || 0).toFixed(2);
+        
+        // Update progress bars
+        if (quote.day_low && quote.day_high && quote.current_price) {
+          const dayRange = quote.day_high - quote.day_low;
+          const dayPosition = ((quote.current_price - quote.day_low) / dayRange) * 100;
+          document.getElementById('dayRangeProgress').style.width = Math.min(100, Math.max(0, dayPosition)) + '%';
+        }
+        
+        document.getElementById('priceUpdateTime').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+        
+        // Update in stock list
+        if (stockListManager) {
+          stockListManager.updateStockItem(AppState.selectedStock.symbol);
+        }
+      }
+    } catch (error) {
+      console.error('Live update error:', error);
+    }
+  }
+}
+
 // Initialize
+let stockListManager;
+
 document.addEventListener('DOMContentLoaded', () => {
   ThemeManager.load();
   new MobileMenu();
   
-  const stockManager = new StockListManager();
+  stockListManager = new StockListManager();
   
   document.getElementById('predictBtn').addEventListener('click', () => PredictionManager.generate());
   document.getElementById('refreshBtn').addEventListener('click', () => PredictionManager.generate());
   document.getElementById('themeBtn').addEventListener('click', () => ThemeManager.toggle());
-  
-  // Auto-refresh prices every 2 minutes
-  setInterval(async () => {
-    if (AppState.selectedStock) {
-      const quote = await YahooFinanceService.fetchQuote(AppState.selectedStock.symbol);
-      if (quote && quote.price) {
-        document.getElementById('metricPrice').textContent = 
-          `${AppState.selectedStock.symbol.includes('.NS') ? '₹' : '$'}${quote.price.toFixed(2)}`;
-      }
+  document.getElementById('refreshLiveBtn').addEventListener('click', async () => {
+    if (stockListManager && AppState.selectedStock) {
+      await stockListManager.updateSelectedStockMetrics();
+      ThemeManager.showNotification('Live data refreshed', 'success');
     }
-  }, 120000);
+  });
+  
+  // Start live updates
+  LiveUpdateManager.startLiveUpdates();
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  LiveUpdateManager.stopLiveUpdates();
+});
+
+// Global error handling
+window.addEventListener('error', (e) => {
+  console.error('Global error:', e.error);
+  ThemeManager.showNotification('An unexpected error occurred', 'error');
 });
 </script>
 </body>
