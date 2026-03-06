@@ -1,11 +1,12 @@
+import os
 import smtplib
 from email.mime.text import MIMEText
 
 
 def send_prediction_email(receiver, symbol, prediction, analysis):
 
-    sender = "yourgmail@gmail.com"
-    password = "your_app_password"
+    sender = "razilchristia@gmail.com"
+    password = os.environ.get("EMAIL_PASSWORD")
 
     subject = f"AlphaAnalytics Prediction for {symbol}"
 
