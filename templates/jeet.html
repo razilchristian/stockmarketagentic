@@ -48,11 +48,38 @@
       border: 1px solid var(--border);
       box-shadow: var(--shadow);
       overflow: hidden;
+      position: relative;
     }
 
     .tradingview-widget-container {
       height: 100%;
       width: 100%;
+    }
+
+    .chart-controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .chart-select {
+      background: var(--darker-bg);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 8px 16px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: 0.3s;
+      font-size: 14px;
+    }
+
+    .chart-select:hover {
+      border-color: var(--primary);
+    }
+
+    .chart-select:focus {
+      outline: none;
+      border-color: var(--primary);
     }
 
     .news-ticker {
@@ -74,10 +101,18 @@
       white-space: nowrap;
     }
 
+    .ticker-content:hover {
+      animation-play-state: paused;
+    }
+
     .ticker-item {
       display: flex;
       align-items: center;
       gap: 12px;
+      background: var(--darker-bg);
+      padding: 8px 16px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border);
     }
 
     .ticker-badge {
@@ -186,11 +221,24 @@
       .chart-container {
         height: 350px;
       }
+      
+      .chart-controls {
+        flex-direction: column;
+        width: 100%;
+      }
+      
+      .chart-select {
+        width: 100%;
+      }
     }
 
     @media (max-width: 480px) {
       .stock-item {
         grid-template-columns: 1fr auto;
+      }
+      
+      .ticker-content {
+        animation: ticker 20s linear infinite;
       }
     }
   </style>
@@ -260,9 +308,9 @@
 
     <!-- Chart Section -->
     <div class="chart-section" data-aos="fade-up" data-aos-delay="200">
-      <div class="chart-header">
-        <h2><i class="fas fa-chart-line"></i> Live Market Charts</h2>
-        <div class="chart-controls flex gap-2">
+      <div class="chart-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
+        <h2 style="font-family: var(--font-display); font-size: 24px;"><i class="fas fa-chart-line"></i> Live Market Charts</h2>
+        <div class="chart-controls">
           <select id="chartSymbol" class="chart-select">
             <option value="NASDAQ:AAPL">Apple (AAPL)</option>
             <option value="NASDAQ:TSLA">Tesla (TSLA)</option>
@@ -520,11 +568,17 @@ const INTERNATIONAL_TICKERS = [
 const FALLBACK_DATA = {
     INDIAN: [
         { symbol: "RELIANCE.NS", name: "Reliance Industries", price: 2856.50, changePercent: 2.35 },
-        { symbol: "TCS.NS", name: "Tata Consultancy Services", price: 3850.75, changePercent: 1.85 }
+        { symbol: "TCS.NS", name: "Tata Consultancy Services", price: 3850.75, changePercent: 1.85 },
+        { symbol: "HDFCBANK.NS", name: "HDFC Bank", price: 1670.25, changePercent: 0.75 },
+        { symbol: "INFY.NS", name: "Infosys", price: 1520.80, changePercent: -0.45 },
+        { symbol: "ICICIBANK.NS", name: "ICICI Bank", price: 1120.30, changePercent: 1.20 }
     ],
     INTERNATIONAL: [
         { symbol: "AAPL", name: "Apple Inc.", price: 218.35, changePercent: 3.25 },
-        { symbol: "NVDA", name: "NVIDIA Corp.", price: 950.02, changePercent: 2.85 }
+        { symbol: "MSFT", name: "Microsoft Corp.", price: 425.50, changePercent: 2.15 },
+        { symbol: "GOOGL", name: "Alphabet Inc.", price: 172.34, changePercent: 1.80 },
+        { symbol: "AMZN", name: "Amazon.com Inc.", price: 178.22, changePercent: 0.67 },
+        { symbol: "TSLA", name: "Tesla Inc.", price: 245.75, changePercent: -1.45 }
     ]
 };
 
@@ -612,18 +666,33 @@ function updateMarketSentiment(indices) {
 }
 
 function updateWatchlists() {
-    updateStockList('topMoversIndian', FALLBACK_DATA.INDIAN.slice(0, 5));
-    updateStockList('topLosersIndian', FALLBACK_DATA.INDIAN.slice(2, 7).map(s => ({...s, changePercent: -s.changePercent})));
-    updateStockList('topMoversInternational', FALLBACK_DATA.INTERNATIONAL.slice(0, 5));
-    updateStockList('topLosersInternational', FALLBACK_DATA.INTERNATIONAL.slice(2, 7).map(s => ({...s, changePercent: -s.changePercent})));
+    // Sort gainers (positive change) and losers (negative change)
+    const allIndian = [...FALLBACK_DATA.INDIAN];
+    const allInternational = [...FALLBACK_DATA.INTERNATIONAL];
+    
+    const gainersIndian = allIndian.filter(s => s.changePercent > 0).sort((a, b) => b.changePercent - a.changePercent);
+    const losersIndian = allIndian.filter(s => s.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent);
+    
+    const gainersInternational = allInternational.filter(s => s.changePercent > 0).sort((a, b) => b.changePercent - a.changePercent);
+    const losersInternational = allInternational.filter(s => s.changePercent < 0).sort((a, b) => a.changePercent - b.changePercent);
+    
+    updateStockList('topMoversIndian', gainersIndian);
+    updateStockList('topLosersIndian', losersIndian);
+    updateStockList('topMoversInternational', gainersInternational);
+    updateStockList('topLosersInternational', losersInternational);
 }
 
 function updateStockList(containerId, stocks) {
     const container = document.getElementById(containerId);
     if (!container) return;
     
+    if (stocks.length === 0) {
+        container.innerHTML = `<div class="empty-state" style="padding: 20px; text-align: center; color: var(--text-muted);">No stocks to display</div>`;
+        return;
+    }
+    
     container.innerHTML = stocks.map(stock => `
-        <div class="stock-item">
+        <div class="stock-item" onclick="showStockDetails('${stock.symbol}')">
             <div class="stock-info">
                 <span class="stock-name">${stock.name}</span>
                 <span class="stock-symbol">${stock.symbol.replace('.NS', '')}</span>
@@ -645,7 +714,10 @@ function updateAIInsight() {
         "Market showing consolidation patterns. Technical analysis suggests potential breakout above key resistance.",
         "Banking sector fundamentals remain strong with improving asset quality and credit growth.",
         "Global cues positive as inflation concerns ease across major economies.",
-        "Momentum indicators suggest continued strength in large-cap stocks with earnings momentum."
+        "Momentum indicators suggest continued strength in large-cap stocks with earnings momentum.",
+        "Small-cap index showing relative strength. Look for quality small-caps with strong fundamentals.",
+        "Foreign institutional investors net buyers in last 3 sessions. FII inflow suggests positive outlook.",
+        "Options data indicates support at current levels. Call writing at higher strikes suggests resistance."
     ];
     document.getElementById('aiInsightText').textContent = insights[Math.floor(Math.random() * insights.length)];
 }
@@ -654,14 +726,20 @@ function updateNewsTicker() {
     const newsItems = [
         { symbol: "AAPL", text: "Apple announces new AI features for iOS 18", change: 2.5 },
         { symbol: "TSLA", text: "Tesla deliveries beat estimates in Q1", change: 4.2 },
-        { symbol: "NVDA", text: "NVIDIA unveils next-gen AI chips", change: 5.8 }
+        { symbol: "NVDA", text: "NVIDIA unveils next-gen AI chips", change: 5.8 },
+        { symbol: "META", text: "Meta's new AI model shows promise", change: 1.9 },
+        { symbol: "MSFT", text: "Microsoft cloud growth accelerates", change: 2.1 },
+        { symbol: "AMZN", text: "Amazon Prime membership hits record", change: 0.8 }
     ];
 
-    document.getElementById('newsTicker').innerHTML = newsItems.map(item => `
+    // Duplicate items for seamless loop
+    const tickerItems = [...newsItems, ...newsItems];
+    
+    document.getElementById('newsTicker').innerHTML = tickerItems.map(item => `
         <div class="ticker-item">
             <span class="ticker-badge">${item.symbol}</span>
             <span>${item.text}</span>
-            <span class="metric-change ${item.change >= 0 ? 'positive' : 'negative'}">
+            <span class="metric-change ${item.change >= 0 ? 'positive' : 'negative'}" style="padding: 2px 8px;">
                 ${item.change >= 0 ? '+' : ''}${item.change}%
             </span>
         </div>
@@ -670,6 +748,14 @@ function updateNewsTicker() {
 
 function sortStockList(containerId, sortBy) {
     ThemeManager.showNotification('Sorting feature coming soon', 'info');
+}
+
+function showStockDetails(symbol) {
+    ThemeManager.showNotification(`Loading ${symbol} details...`, 'info');
+    // Navigate to prediction page with selected symbol
+    setTimeout(() => {
+        window.location.href = `/prediction?symbol=${symbol}`;
+    }, 500);
 }
 
 function exportReport() {
