@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Market Insights - AlphaAnalytics</title>
+  
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  
+  <!-- AOS Animation -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  
+  <!-- Shared CSS -->
+  <link rel="stylesheet" href="/static/css/alpha-analytics.css">
+  
+  <style>
+    /* Page-specific styles */
+    .insight-header {
+      background: linear-gradient(135deg, var(--card-bg), var(--darker-bg));
+      border-radius: var(--radius-xl);
+      padding: 40px;
+      margin-bottom: 32px;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+      text-align: center;
+    }
+
+    .insight-header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--gradient-primary);
+    }
+
+    .insight-header h1 {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    .insight-header p {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .insight-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    @media (max-width: 1024px) {
+      .insight-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .insight-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .insight-header h1 {
+        font-size: 32px;
+      }
+    }
+
+    .insight-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .insight-card:hover {
+      transform: translateY(-5px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--primary);
+    }
+
+    .insight-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--gradient-primary);
+    }
+
+    .insight-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: rgba(99, 102, 241, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .insight-icon i {
+      font-size: 28px;
+      color: var(--primary);
+    }
+
+    .insight-card h3 {
+      font-family: var(--font-display);
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+
+    .insight-card p {
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .insight-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .insight-time {
+      color: var(--text-muted);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .insight-tag {
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .insight-tag.technical {
+      background: rgba(99, 102, 241, 0.1);
+      color: var(--primary);
+    }
+
+    .insight-tag.fundamental {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--secondary);
+    }
+
+    .insight-tag.sentiment {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--accent);
+    }
+
+    .insight-tag.risk {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+    }
+
+    .trending-section {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      margin-bottom: 32px;
+    }
+
+    .trending-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .trending-header h2 {
+      font-family: var(--font-display);
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .trending-stocks {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+    }
+
+    .trending-stock {
+      background: var(--darker-bg);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      border: 1px solid var(--border);
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    .trending-stock:hover {
+      transform: translateY(-3px);
+      border-color: var(--primary);
+    }
+
+    .trending-stock-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .trending-symbol {
+      font-weight: 700;
+      font-size: 18px;
+      font-family: var(--font-display);
+    }
+
+    .trending-change {
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+    }
+
+    .trending-change.positive {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--success);
+    }
+
+    .trending-change.negative {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+    }
+
+    .trending-name {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .trending-reason {
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .trending-reason i {
+      color: var(--primary);
+      font-size: 16px;
+    }
+
+    .chart-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      margin-bottom: 32px;
+    }
+
+    .chart-container {
+      height: 400px;
+      position: relative;
+    }
+
+    .sentiment-meter {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+
+    .meter {
+      width: 200px;
+      height: 200px;
+      position: relative;
+    }
+
+    .meter-value {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .meter-value .number {
+      font-size: 48px;
+      font-weight: 700;
+      font-family: var(--font-display);
+      color: var(--primary);
+    }
+
+    .meter-value .label {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .sentiment-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    .sentiment-stat {
+      text-align: center;
+    }
+
+    .sentiment-stat .value {
+      font-size: 32px;
+      font-weight: 700;
+      font-family: var(--font-display);
+      margin-bottom: 4px;
+    }
+
+    .sentiment-stat .label {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .news-feed {
+      margin-top: 24px;
+    }
+
+    .news-item {
+      display: flex;
+      gap: 16px;
+      padding: 16px;
+      background: var(--darker-bg);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+      transition: all 0.3s;
+    }
+
+    .news-item:hover {
+      transform: translateX(5px);
+      border-color: var(--primary);
+    }
+
+    .news-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(99, 102, 241, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+    }
+
+    .news-content {
+      flex: 1;
+    }
+
+    .news-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .news-meta {
+      display: flex;
+      gap: 16px;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .news-source {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .news-time {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .calendar-day {
+      background: var(--darker-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .calendar-day:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+
+    .calendar-day.has-event {
+      border-color: var(--primary);
+      background: rgba(99, 102, 241, 0.1);
+    }
+
+    .calendar-day .date {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .calendar-day .event-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--primary);
+      margin: 0 auto;
+    }
+
+    .event-list {
+      margin-top: 24px;
+    }
+
+    .event-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px;
+      background: var(--darker-bg);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+
+    .event-date {
+      min-width: 60px;
+      text-align: center;
+    }
+
+    .event-date .day {
+      font-size: 20px;
+      font-weight: 700;
+      font-family: var(--font-display);
+      color: var(--primary);
+    }
+
+    .event-date .month {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .event-details {
+      flex: 1;
+    }
+
+    .event-title {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .event-type {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .event-impact {
+      padding: 4px 8px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .event-impact.high {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+    }
+
+    .event-impact.medium {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--warning);
+    }
+
+    .event-impact.low {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--success);
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="nav-row">
+      <div class="logo">
+        <i class="fas fa-chart-line"></i>
+        AlphaAnalytics
+      </div>
+      
+      <button class="menu-toggle" aria-label="Toggle menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <nav class="nav-items">
+        <a href="/jeet" class="nav-item"><i class="fas fa-home"></i>Dashboard</a>
+        <a href="/portfolio" class="nav-item"><i class="fas fa-briefcase"></i>Portfolio</a>
+        <a href="/mystock" class="nav-item"><i class="fas fa-star"></i>My Stock</a>
+        <a href="/deposit" class="nav-item"><i class="fas fa-wallet"></i>Deposit</a>
+        <a href="/insight" class="nav-item active"><i class="fas fa-brain"></i>Insight</a>
+        <a href="/prediction" class="nav-item"><i class="fas fa-chart-line"></i>Prediction</a>
+        <a href="/news" class="nav-item"><i class="fas fa-newspaper"></i>News</a>
+        <a href="/videos" class="nav-item"><i class="fas fa-video"></i>Videos</a>
+        <a href="/superstars" class="nav-item"><i class="fas fa-trophy"></i>Superstars</a>
+        <a href="/alerts" class="nav-item"><i class="fas fa-bell"></i>Alerts</a>
+        <a href="/help" class="nav-item"><i class="fas fa-question-circle"></i>Help</a>
+        <a href="/profile" class="nav-item"><i class="fas fa-user"></i>Profile</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Insight Header -->
+    <div class="insight-header" data-aos="fade-up">
+      <h1 class="gradient-text"><i class="fas fa-brain"></i> AI Market Insights</h1>
+      <p>Real-time market analysis powered by advanced AI algorithms. Get intelligent predictions, sentiment analysis, and actionable trading insights.</p>
+    </div>
+
+    <!-- Market Sentiment Overview -->
+    <div class="grid grid-3" data-aos="fade-up" data-aos-delay="100">
+      <div class="metric-card">
+        <div class="metric-label">Market Sentiment</div>
+        <div class="metric-value" id="marketSentiment">Bullish</div>
+        <span class="badge badge-success mt-2"><i class="fas fa-arrow-up"></i> +2.4%</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">AI Confidence</div>
+        <div class="metric-value" id="aiConfidence">87%</div>
+        <div class="progress mt-2" style="height: 6px;">
+          <div class="progress-bar" style="width: 87%;"></div>
+        </div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Active Insights</div>
+        <div class="metric-value" id="activeInsights">24</div>
+        <span class="badge badge-info mt-2">Updated 2 min ago</span>
+      </div>
+    </div>
+
+    <!-- Sentiment Meter -->
+    <div class="chart-card" data-aos="fade-up" data-aos-delay="200">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-chart-pie"></i> Market Sentiment Analysis</h3>
+      </div>
+      <div class="sentiment-meter">
+        <div class="meter">
+          <canvas id="sentimentGauge"></canvas>
+          <div class="meter-value">
+            <div class="number">72</div>
+            <div class="label">Bullish</div>
+          </div>
+        </div>
+        <div class="sentiment-stats">
+          <div class="sentiment-stat">
+            <div class="value text-success">65%</div>
+            <div class="label">Bullish</div>
+          </div>
+          <div class="sentiment-stat">
+            <div class="value text-warning">20%</div>
+            <div class="label">Neutral</div>
+          </div>
+          <div class="sentiment-stat">
+            <div class="value text-danger">15%</div>
+            <div class="label">Bearish</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Insights Grid -->
+    <div class="insight-grid" data-aos="fade-up" data-aos-delay="300">
+      <!-- Technical Analysis -->
+      <div class="insight-card">
+        <div class="insight-icon">
+          <i class="fas fa-chart-line"></i>
+        </div>
+        <h3>Technical Analysis</h3>
+        <p>NVIDIA (NVDA) showing strong bullish momentum with RSI at 68 and MACD crossover. Key resistance at $950, support at $890.</p>
+        <div class="insight-meta">
+          <span class="insight-time"><i class="far fa-clock"></i> 5 min ago</span>
+          <span class="insight-tag technical">Technical</span>
+        </div>
+      </div>
+
+      <!-- Fundamental Analysis -->
+      <div class="insight-card">
+        <div class="insight-icon">
+          <i class="fas fa-chart-bar"></i>
+        </div>
+        <h3>Fundamental Analysis</h3>
+        <p>Apple (AAPL) P/E ratio of 28.3 suggests fair valuation. Strong cash flow and upcoming product launches support positive outlook.</p>
+        <div class="insight-meta">
+          <span class="insight-time"><i class="far fa-clock"></i> 12 min ago</span>
+          <span class="insight-tag fundamental">Fundamental</span>
+        </div>
+      </div>
+
+      <!-- Sentiment Analysis -->
+      <div class="insight-card">
+        <div class="insight-icon">
+          <i class="fas fa-smile"></i>
+        </div>
+        <h3>Sentiment Analysis</h3>
+        <p>Social media sentiment for Tesla (TSLA) is 72% positive. Retail investor interest increasing ahead of earnings.</p>
+        <div class="insight-meta">
+          <span class="insight-time"><i class="far fa-clock"></i> 18 min ago</span>
+          <span class="insight-tag sentiment">Sentiment</span>
+        </div>
+      </div>
+
+      <!-- Risk Analysis -->
+      <div class="insight-card">
+        <div class="insight-icon">
+          <i class="fas fa-shield-alt"></i>
+        </div>
+        <h3>Risk Analysis</h3>
+        <p>Market volatility index (VIX) up 15%. Consider hedging positions with options or reducing leverage.</p>
+        <div class="insight-meta">
+          <span class="insight-time"><i class="far fa-clock"></i> 25 min ago</span>
+          <span class="insight-tag risk">Risk</span>
+        </div>
+      </div>
+
+      <!-- Pattern Recognition -->
+      <div class="insight-card">
+        <div class="insight-icon">
+          <i class="fas fa-shapes"></i>
+        </div>
+        <h3>Pattern Recognition</h3>
+        <p>Microsoft (MSFT) forming bullish flag pattern on 4-hour chart. Breakout above $420 could trigger rally to $440.</p>
+        <div class="insight-meta">
+          <span class="insight-time"><i class="far fa-clock"></i> 32 min ago</span>
+          <span class="insight-tag technical">Technical</span>
+        </div>
+      </div>
+
+      <!-- News Impact -->
+      <div class="insight-card">
+        <div class="insight-icon">
+          <i class="fas fa-newspaper"></i>
+        </div>
+        <h3>News Impact</h3>
+        <p>Fed signals potential rate cuts. Rate-sensitive sectors like financials and real estate showing increased activity.</p>
+        <div class="insight-meta">
+          <span class="insight-time"><i class="far fa-clock"></i> 45 min ago</span>
+          <span class="insight-tag fundamental">Fundamental</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trending Stocks -->
+    <div class="trending-section" data-aos="fade-up" data-aos-delay="400">
+      <div class="trending-header">
+        <h2><i class="fas fa-fire"></i> Trending Stocks</h2>
+        <button class="btn btn-secondary btn-sm" onclick="refreshTrending()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+      
+      <div class="trending-stocks" id="trendingStocks">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Market Events Calendar -->
+    <div class="grid grid-2" data-aos="fade-up" data-aos-delay="500">
+      <div class="chart-card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fas fa-calendar-alt"></i> Upcoming Events</h3>
+        </div>
+        
+        <div class="calendar-grid" id="calendar">
+          <!-- Populated by JavaScript -->
+        </div>
+        
+        <div class="event-list" id="eventList">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Market News Feed -->
+      <div class="chart-card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fas fa-newspaper"></i> Market News</h3>
+          <span class="badge badge-primary">Live</span>
+        </div>
+        
+        <div class="news-feed" id="newsFeed">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Recommendation -->
+    <div class="ai-insight" data-aos="fade-up" data-aos-delay="600">
+      <div class="ai-insight-header">
+        <i class="fas fa-robot ai-icon"></i>
+        <h3>AI Trading Recommendation</h3>
+      </div>
+      <div class="ai-content" id="aiRecommendation">
+        Based on current market conditions, AI suggests maintaining a balanced portfolio with 60% in growth stocks, 
+        30% in value stocks, and 10% in cash. Consider accumulating quality tech names on dips and hedging with 
+        inverse ETFs given the elevated volatility levels.
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- AOS Animation -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+<script>
+// AOS Initialization
+AOS.init({
+  duration: 800,
+  once: true
+});
+
+// Theme Manager
+class ThemeManager {
+    static toggle() {
+        document.body.classList.toggle('light-theme');
+        localStorage.setItem('theme', document.body.classList.contains('light-theme') ? 'light' : 'dark');
+        this.showNotification('Theme changed', 'success');
+    }
+
+    static load() {
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-theme');
+        }
+    }
+
+    static showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                                 type === 'error' ? 'fa-exclamation-circle' : 
+                                 type === 'warning' ? 'fa-exclamation-triangle' : 
+                                 'fa-info-circle'}"></i>
+                <span class="notification-message">${message}</span>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.classList.add('show'), 10);
+        setTimeout(() => notification.remove(), 4000);
+    }
+}
+
+// Mobile Menu
+class MobileMenu {
+    constructor() {
+        this.menuToggle = document.querySelector('.menu-toggle');
+        this.navItems = document.querySelector('.nav-items');
+        this.init();
+    }
+
+    init() {
+        this.menuToggle?.addEventListener('click', () => {
+            this.navItems.classList.toggle('show');
+            this.menuToggle.classList.toggle('active');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.navbar') && this.navItems.classList.contains('show')) {
+                this.navItems.classList.remove('show');
+                this.menuToggle.classList.remove('active');
+            }
+        });
+    }
+}
+
+// Initialize Gauge Chart
+function initGauge() {
+    const ctx = document.getElementById('sentimentGauge').getContext('2d');
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            datasets: [{
+                data: [72, 28],
+                backgroundColor: [
+                    '#22c55e',
+                    '#334155'
+                ],
+                borderWidth: 0,
+                circumference: 180,
+                rotation: 270
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            cutout: '70%',
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+            }
+        }
+    });
+}
+
+// Populate Trending Stocks
+function populateTrending() {
+    const trending = [
+        { symbol: "NVDA", name: "NVIDIA Corp.", change: 5.42, reason: "AI chip demand surge" },
+        { symbol: "TSLA", name: "Tesla Inc.", change: -1.45, reason: "Delivery numbers expected" },
+        { symbol: "AAPL", name: "Apple Inc.", change: 1.24, reason: "WWDC announcements" },
+        { symbol: "MSFT", name: "Microsoft", change: 2.15, reason: "Cloud growth" },
+        { symbol: "META", name: "Meta Platforms", change: 1.89, reason: "AI integration" },
+        { symbol: "AMZN", name: "Amazon", change: 0.67, reason: "Prime Day buzz" }
+    ];
+    
+    const container = document.getElementById('trendingStocks');
+    container.innerHTML = trending.map(stock => `
+        <div class="trending-stock" onclick="showStockDetails('${stock.symbol}')">
+            <div class="trending-stock-header">
+                <span class="trending-symbol">${stock.symbol}</span>
+                <span class="trending-change ${stock.change >= 0 ? 'positive' : 'negative'}">
+                    ${stock.change >= 0 ? '+' : ''}${stock.change}%
+                </span>
+            </div>
+            <div class="trending-name">${stock.name}</div>
+            <div class="trending-reason">
+                <i class="fas fa-chart-line"></i>
+                ${stock.reason}
+            </div>
+        </div>
+    `).join('');
+}
+
+// Populate Calendar
+function populateCalendar() {
+    const calendar = document.getElementById('calendar');
+    const days = Array.from({ length: 31 }, (_, i) => i + 1);
+    const events = [5, 12, 15, 22, 28]; // Days with events
+    
+    calendar.innerHTML = days.map(day => `
+        <div class="calendar-day ${events.includes(day) ? 'has-event' : ''}">
+            <div class="date">${day}</div>
+            ${events.includes(day) ? '<div class="event-dot"></div>' : ''}
+        </div>
+    `).join('');
+}
+
+// Populate Events
+function populateEvents() {
+    const events = [
+        { day: 15, month: "MAR", title: "Fed Interest Rate Decision", type: "Central Bank", impact: "high" },
+        { day: 18, month: "MAR", title: "CPI Data Release", type: "Economic Data", impact: "high" },
+        { day: 22, month: "MAR", title: "AAPL Product Launch", type: "Company Event", impact: "medium" },
+        { day: 25, month: "MAR", title: "OPEC Meeting", type: "Commodities", impact: "medium" },
+        { day: 28, month: "MAR", title: "NVDA Earnings", type: "Earnings", impact: "high" }
+    ];
+    
+    const container = document.getElementById('eventList');
+    container.innerHTML = events.map(event => `
+        <div class="event-item">
+            <div class="event-date">
+                <div class="day">${event.day}</div>
+                <div class="month">${event.month}</div>
+            </div>
+            <div class="event-details">
+                <div class="event-title">${event.title}</div>
+                <div class="event-type">${event.type}</div>
+            </div>
+            <span class="event-impact ${event.impact}">${event.impact.toUpperCase()}</span>
+        </div>
+    `).join('');
+}
+
+// Populate News Feed
+function populateNews() {
+    const news = [
+        { title: "Fed Signals Potential Rate Cuts in 2024", source: "Bloomberg", time: "10 min ago", icon: "fa-chart-line" },
+        { title: "NVIDIA Unveils Next-Gen AI Chips", source: "Reuters", time: "25 min ago", icon: "fa-microchip" },
+        { title: "Tesla Delivery Numbers Beat Estimates", source: "CNBC", time: "42 min ago", icon: "fa-car" },
+        { title: "Apple Announces AI Features at WWDC", source: "TechCrunch", time: "1 hour ago", icon: "fa-mobile" },
+        { title: "Oil Prices Surge on OPEC+ Decision", source: "WSJ", time: "2 hours ago", icon: "fa-oil-can" }
+    ];
+    
+    const container = document.getElementById('newsFeed');
+    container.innerHTML = news.map(item => `
+        <div class="news-item">
+            <div class="news-icon">
+                <i class="fas ${item.icon}"></i>
+            </div>
+            <div class="news-content">
+                <div class="news-title">${item.title}</div>
+                <div class="news-meta">
+                    <span class="news-source"><i class="far fa-newspaper"></i> ${item.source}</span>
+                    <span class="news-time"><i class="far fa-clock"></i> ${item.time}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Refresh Trending
+function refreshTrending() {
+    ThemeManager.showNotification('Refreshing trending data...', 'info');
+    setTimeout(() => {
+        populateTrending();
+        ThemeManager.showNotification('Trending data updated', 'success');
+    }, 1000);
+}
+
+// Show Stock Details
+function showStockDetails(symbol) {
+    ThemeManager.showNotification(`Loading ${symbol} details...`, 'info');
+    setTimeout(() => {
+        window.location.href = `/mystock?symbol=${symbol}`;
+    }, 500);
+}
+
+// Toggle Theme
+function toggleTheme() {
+    ThemeManager.toggle();
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    ThemeManager.load();
+    new MobileMenu();
+    
+    initGauge();
+    populateTrending();
+    populateCalendar();
+    populateEvents();
+    populateNews();
+    
+    // Auto-refresh data
+    setInterval(() => {
+        populateTrending();
+        populateNews();
+    }, 60000); // Every minute
+});
+
+// Make functions global
+window.refreshTrending = refreshTrending;
+window.showStockDetails = showStockDetails;
+window.toggleTheme = toggleTheme;
+</script>
+</body>
+</html>

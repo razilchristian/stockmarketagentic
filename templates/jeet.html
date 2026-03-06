@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard - AlphaAnalytics</title>
+  
+  <!-- Lightweight Charts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.0.1/lightweight-charts.standalone.production.js"></script>
+  
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- AOS Animation -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  
+  <!-- Shared CSS -->
+  <link rel="stylesheet" href="/static/css/alpha-analytics.css">
+  
+  <style>
+    /* Page-specific styles */
+    .market-sentiment {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: var(--shadow);
+      animation: slideIn 0.5s ease;
+      border-left: 4px solid transparent;
+    }
+
+    .market-sentiment.positive { border-left-color: var(--success); }
+    .market-sentiment.negative { border-left-color: var(--danger); }
+    .market-sentiment.neutral { border-left-color: var(--warning); }
+
+    .chart-container {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      height: 500px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .tradingview-widget-container {
+      height: 100%;
+      width: 100%;
+    }
+
+    .news-ticker {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      padding: 16px 24px;
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      position: relative;
+      box-shadow: var(--shadow);
+    }
+
+    .ticker-content {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      animation: ticker 30s linear infinite;
+      white-space: nowrap;
+    }
+
+    .ticker-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .ticker-badge {
+      background: var(--primary);
+      color: white;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    @keyframes ticker {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+
+    .watchlist-section {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .watchlist {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    .watchlist-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .watchlist-header h2 {
+      font-family: var(--font-display);
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stock-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .stock-item {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 16px;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+      transition: all 0.3s;
+      cursor: pointer;
+      border-radius: var(--radius-md);
+    }
+
+    .stock-item:hover {
+      background: var(--card-hover);
+      transform: translateX(5px);
+    }
+
+    .stock-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stock-name {
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .stock-symbol {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .stock-price-data {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .stock-price {
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    @media (max-width: 1024px) {
+      .watchlist-section {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .chart-container {
+        height: 350px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .stock-item {
+        grid-template-columns: 1fr auto;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="nav-row">
+      <div class="logo">
+        <i class="fas fa-chart-line"></i>
+        AlphaAnalytics
+      </div>
+      
+      <button class="menu-toggle" aria-label="Toggle menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <nav class="nav-items">
+        <a href="/jeet" class="nav-item active"><i class="fas fa-home"></i>Dashboard</a>
+        <a href="/portfolio" class="nav-item"><i class="fas fa-briefcase"></i>Portfolio</a>
+        <a href="/mystock" class="nav-item"><i class="fas fa-star"></i>My Stock</a>
+        <a href="/deposit" class="nav-item"><i class="fas fa-wallet"></i>Deposit</a>
+        <a href="/insight" class="nav-item"><i class="fas fa-brain"></i>Insight</a>
+        <a href="/prediction" class="nav-item"><i class="fas fa-chart-line"></i>Prediction</a>
+        <a href="/news" class="nav-item"><i class="fas fa-newspaper"></i>News</a>
+        <a href="/videos" class="nav-item"><i class="fas fa-video"></i>Videos</a>
+        <a href="/superstars" class="nav-item"><i class="fas fa-star"></i>Superstars</a>
+        <a href="/alerts" class="nav-item"><i class="fas fa-bell"></i>Alerts</a>
+        <a href="/help" class="nav-item"><i class="fas fa-question-circle"></i>Help</a>
+        <a href="/profile" class="nav-item"><i class="fas fa-user"></i>Profile</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Header -->
+    <div class="header">
+      <h1><i class="fas fa-chart-pie"></i> Market Intelligence Dashboard</h1>
+      <div class="header-controls">
+        <div class="search-container">
+          <i class="fas fa-search search-icon"></i>
+          <input type="text" class="search-bar" placeholder="Search stocks, indices, crypto..." id="globalSearch">
+        </div>
+        <button class="btn btn-secondary" onclick="toggleTheme()">
+          <i class="fas fa-palette"></i>Theme
+        </button>
+        <button class="btn btn-primary" onclick="exportReport()">
+          <i class="fas fa-download"></i>Export
+        </button>
+      </div>
+    </div>
+
+    <!-- Market Sentiment -->
+    <div id="marketSentiment" class="market-sentiment" data-aos="fade-up">
+      <i class="fas fa-chart-line"></i>
+      <span>Loading market sentiment...</span>
+    </div>
+
+    <!-- Market Overview -->
+    <div class="grid grid-auto" id="marketOverview" data-aos="fade-up" data-aos-delay="100">
+      <!-- Dynamically populated -->
+    </div>
+
+    <!-- Chart Section -->
+    <div class="chart-section" data-aos="fade-up" data-aos-delay="200">
+      <div class="chart-header">
+        <h2><i class="fas fa-chart-line"></i> Live Market Charts</h2>
+        <div class="chart-controls flex gap-2">
+          <select id="chartSymbol" class="chart-select">
+            <option value="NASDAQ:AAPL">Apple (AAPL)</option>
+            <option value="NASDAQ:TSLA">Tesla (TSLA)</option>
+            <option value="NASDAQ:MSFT">Microsoft (MSFT)</option>
+            <option value="NASDAQ:GOOGL">Google (GOOGL)</option>
+            <option value="NASDAQ:NVDA">NVIDIA (NVDA)</option>
+            <option value="BINANCE:BTCUSDT">Bitcoin (BTC)</option>
+          </select>
+          <select id="chartInterval" class="chart-select">
+            <option value="1">1 Min</option>
+            <option value="5">5 Min</option>
+            <option value="15">15 Min</option>
+            <option value="60">1 Hour</option>
+            <option value="D" selected>Daily</option>
+            <option value="W">Weekly</option>
+          </select>
+        </div>
+      </div>
+      <div class="chart-container">
+        <div class="tradingview-widget-container">
+          <div id="tradingview_widget" style="height: 100%; width: 100%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Insight -->
+    <div class="ai-insight" data-aos="fade-up" data-aos-delay="300">
+      <div class="ai-insight-header">
+        <i class="fas fa-robot ai-icon"></i>
+        <h3>AI Market Intelligence</h3>
+      </div>
+      <div class="ai-content" id="aiInsightText">
+        Analyzing market patterns and generating insights...
+      </div>
+    </div>
+
+    <!-- News Ticker -->
+    <div class="news-ticker" data-aos="fade-up" data-aos-delay="400">
+      <div class="ticker-content" id="newsTicker">
+        <!-- News items -->
+      </div>
+    </div>
+
+    <!-- Watchlists -->
+    <div class="watchlist-section" data-aos="fade-up" data-aos-delay="500">
+      <!-- Indian Gainers -->
+      <div class="watchlist">
+        <div class="watchlist-header">
+          <h2><i class="fas fa-arrow-up text-success"></i> 🇮🇳 Top Gainers</h2>
+          <div class="flex gap-2">
+            <button class="btn btn-sm btn-secondary active" onclick="sortStockList('topMoversIndian', 'changeDesc')">% Change</button>
+            <button class="btn btn-sm btn-secondary" onclick="sortStockList('topMoversIndian', 'name')">Name</button>
+          </div>
+        </div>
+        <div class="stock-list" id="topMoversIndian"></div>
+      </div>
+
+      <!-- Indian Losers -->
+      <div class="watchlist">
+        <div class="watchlist-header">
+          <h2><i class="fas fa-arrow-down text-danger"></i> 🇮🇳 Top Losers</h2>
+          <div class="flex gap-2">
+            <button class="btn btn-sm btn-secondary active" onclick="sortStockList('topLosersIndian', 'changeAsc')">% Change</button>
+            <button class="btn btn-sm btn-secondary" onclick="sortStockList('topLosersIndian', 'name')">Name</button>
+          </div>
+        </div>
+        <div class="stock-list" id="topLosersIndian"></div>
+      </div>
+
+      <!-- International Gainers -->
+      <div class="watchlist">
+        <div class="watchlist-header">
+          <h2><i class="fas fa-arrow-up text-success"></i> 🌍 Top Gainers</h2>
+          <div class="flex gap-2">
+            <button class="btn btn-sm btn-secondary active" onclick="sortStockList('topMoversInternational', 'changeDesc')">% Change</button>
+            <button class="btn btn-sm btn-secondary" onclick="sortStockList('topMoversInternational', 'name')">Name</button>
+          </div>
+        </div>
+        <div class="stock-list" id="topMoversInternational"></div>
+      </div>
+
+      <!-- International Losers -->
+      <div class="watchlist">
+        <div class="watchlist-header">
+          <h2><i class="fas fa-arrow-down text-danger"></i> 🌍 Top Losers</h2>
+          <div class="flex gap-2">
+            <button class="btn btn-sm btn-secondary active" onclick="sortStockList('topLosersInternational', 'changeAsc')">% Change</button>
+            <button class="btn btn-sm btn-secondary" onclick="sortStockList('topLosersInternational', 'name')">Name</button>
+          </div>
+        </div>
+        <div class="stock-list" id="topLosersInternational"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- AOS Animation -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+<!-- Shared JavaScript -->
+<script>
+// AOS Initialization
+AOS.init({
+  duration: 800,
+  once: true,
+  easing: 'ease-in-out'
+});
+
+// Configuration
+const CONFIG = {
+    API_BASE_URL: window.location.origin,
+    AUTO_REFRESH_INTERVAL: 300000,
+    CACHE_DURATION: 5 * 60 * 1000
+};
+
+// Theme Manager
+class ThemeManager {
+    static toggle() {
+        document.body.classList.toggle('light-theme');
+        localStorage.setItem('theme', document.body.classList.contains('light-theme') ? 'light' : 'dark');
+        this.showNotification('Theme changed successfully', 'success');
+        
+        // Update chart theme
+        if (window.ChartManager) {
+            ChartManager.updateTheme();
+        }
+    }
+
+    static load() {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light') {
+            document.body.classList.add('light-theme');
+        }
+    }
+
+    static showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                                 type === 'error' ? 'fa-exclamation-circle' : 
+                                 type === 'warning' ? 'fa-exclamation-triangle' : 
+                                 'fa-info-circle'} notification-icon"></i>
+                <span class="notification-message">${message}</span>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.classList.add('show'), 10);
+        setTimeout(() => notification.remove(), 5000);
+    }
+}
+
+// Mobile Menu
+class MobileMenu {
+    constructor() {
+        this.menuToggle = document.querySelector('.menu-toggle');
+        this.navItems = document.querySelector('.nav-items');
+        this.init();
+    }
+
+    init() {
+        this.menuToggle?.addEventListener('click', () => {
+            this.navItems.classList.toggle('show');
+            this.menuToggle.classList.toggle('active');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.navbar') && this.navItems.classList.contains('show')) {
+                this.navItems.classList.remove('show');
+                this.menuToggle.classList.remove('active');
+            }
+        });
+    }
+}
+
+// Chart Manager
+class ChartManager {
+    static currentWidget = null;
+
+    static initialize() {
+        this.loadTradingViewScript().then(() => {
+            this.createChart();
+        });
+    }
+
+    static loadTradingViewScript() {
+        return new Promise((resolve) => {
+            if (window.TradingView) {
+                resolve();
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = 'https://s3.tradingview.com/tv.js';
+            script.onload = resolve;
+            document.head.appendChild(script);
+        });
+    }
+
+    static createChart(symbol = "NASDAQ:AAPL", interval = "D") {
+        if (this.currentWidget) this.currentWidget.remove();
+        
+        this.currentWidget = new TradingView.widget({
+            "autosize": true,
+            "symbol": symbol,
+            "interval": interval,
+            "timezone": "Asia/Kolkata",
+            "theme": document.body.classList.contains('light-theme') ? "light" : "dark",
+            "style": "1",
+            "locale": "en",
+            "toolbar_bg": "#f1f3f6",
+            "enable_publishing": false,
+            "container_id": "tradingview_widget",
+            "studies": [
+                "RSI@tv-basicstudies",
+                "MACD@tv-basicstudies",
+                "Volume@tv-basicstudies"
+            ]
+        });
+    }
+
+    static updateTheme() {
+        const symbol = document.getElementById('chartSymbol')?.value || 'NASDAQ:AAPL';
+        const interval = document.getElementById('chartInterval')?.value || 'D';
+        this.createChart(symbol, interval);
+    }
+
+    static updateSymbol(symbol) {
+        const interval = document.getElementById('chartInterval')?.value || 'D';
+        this.createChart(symbol, interval);
+    }
+
+    static updateInterval(interval) {
+        const symbol = document.getElementById('chartSymbol')?.value || 'NASDAQ:AAPL';
+        this.createChart(symbol, interval);
+    }
+}
+
+// Stock Data
+const NSE_TICKERS = [
+    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", 
+    "ICICIBANK.NS", "SBIN.NS", "BHARTIARTL.NS", "ITC.NS",
+    "KOTAKBANK.NS", "AXISBANK.NS"
+];
+
+const INTERNATIONAL_TICKERS = [
+    "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", 
+    "NVDA", "META", "JPM", "V", "JNJ"
+];
+
+// Market Data
+const FALLBACK_DATA = {
+    INDIAN: [
+        { symbol: "RELIANCE.NS", name: "Reliance Industries", price: 2856.50, changePercent: 2.35 },
+        { symbol: "TCS.NS", name: "Tata Consultancy Services", price: 3850.75, changePercent: 1.85 }
+    ],
+    INTERNATIONAL: [
+        { symbol: "AAPL", name: "Apple Inc.", price: 218.35, changePercent: 3.25 },
+        { symbol: "NVDA", name: "NVIDIA Corp.", price: 950.02, changePercent: 2.85 }
+    ]
+};
+
+// Application State
+const AppState = {
+    stockData: {
+        topMoversIndian: [],
+        topLosersIndian: [],
+        topMoversInternational: [],
+        topLosersInternational: []
+    },
+    marketIndices: {},
+    isInitialized: false,
+    refreshInterval: null
+};
+
+// Initialize Dashboard
+document.addEventListener('DOMContentLoaded', async () => {
+    ThemeManager.load();
+    new MobileMenu();
+    ChartManager.initialize();
+    
+    await initializeMarketData();
+    
+    setInterval(initializeMarketData, CONFIG.AUTO_REFRESH_INTERVAL);
+    
+    document.getElementById('chartSymbol').addEventListener('change', (e) => ChartManager.updateSymbol(e.target.value));
+    document.getElementById('chartInterval').addEventListener('change', (e) => ChartManager.updateInterval(e.target.value));
+});
+
+async function initializeMarketData() {
+    updateMarketIndices();
+    updateWatchlists();
+    updateAIInsight();
+    updateNewsTicker();
+}
+
+function updateMarketIndices() {
+    const el = document.getElementById('marketOverview');
+    const indices = [
+        { name: "NIFTY 50", value: 24500, change: 0.85 },
+        { name: "SENSEX", value: 82000, change: -0.55 },
+        { name: "NASDAQ", value: 16500, change: 1.25 },
+        { name: "S&P 500", value: 5200, change: 0.75 }
+    ];
+    
+    el.innerHTML = indices.map(index => `
+        <div class="metric-card">
+            <div class="metric-label">${index.name}</div>
+            <div class="metric-value">${index.name.includes('NIFTY') || index.name.includes('SENSEX') ? '₹' : '$'}${index.value.toLocaleString()}</div>
+            <span class="metric-change ${index.change >= 0 ? 'positive' : 'negative'}">
+                <i class="fas ${index.change >= 0 ? 'fa-arrow-up' : 'fa-arrow-down'}"></i>
+                ${Math.abs(index.change)}%
+            </span>
+        </div>
+    `).join('');
+    
+    updateMarketSentiment(indices);
+}
+
+function updateMarketSentiment(indices) {
+    const sentimentEl = document.getElementById('marketSentiment');
+    const avgChange = indices.reduce((sum, i) => sum + i.change, 0) / indices.length;
+    
+    let sentiment, icon;
+    if (avgChange > 0.5) {
+        sentiment = "STRONGLY BULLISH";
+        icon = "fa-rocket";
+        sentimentEl.className = "market-sentiment positive";
+    } else if (avgChange > 0) {
+        sentiment = "BULLISH";
+        icon = "fa-arrow-up";
+        sentimentEl.className = "market-sentiment positive";
+    } else if (avgChange > -0.5) {
+        sentiment = "NEUTRAL";
+        icon = "fa-minus";
+        sentimentEl.className = "market-sentiment neutral";
+    } else {
+        sentiment = "BEARISH";
+        icon = "fa-arrow-down";
+        sentimentEl.className = "market-sentiment negative";
+    }
+    
+    sentimentEl.innerHTML = `<i class="fas ${icon}"></i><span>Market Sentiment: ${sentiment} (${avgChange.toFixed(2)}%)</span>`;
+}
+
+function updateWatchlists() {
+    updateStockList('topMoversIndian', FALLBACK_DATA.INDIAN.slice(0, 5));
+    updateStockList('topLosersIndian', FALLBACK_DATA.INDIAN.slice(2, 7).map(s => ({...s, changePercent: -s.changePercent})));
+    updateStockList('topMoversInternational', FALLBACK_DATA.INTERNATIONAL.slice(0, 5));
+    updateStockList('topLosersInternational', FALLBACK_DATA.INTERNATIONAL.slice(2, 7).map(s => ({...s, changePercent: -s.changePercent})));
+}
+
+function updateStockList(containerId, stocks) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    container.innerHTML = stocks.map(stock => `
+        <div class="stock-item">
+            <div class="stock-info">
+                <span class="stock-name">${stock.name}</span>
+                <span class="stock-symbol">${stock.symbol.replace('.NS', '')}</span>
+            </div>
+            <div class="stock-price-data">
+                <span class="stock-price">${stock.symbol.includes('.NS') ? '₹' : '$'}${stock.price.toFixed(2)}</span>
+                <span class="metric-change ${stock.changePercent >= 0 ? 'positive' : 'negative'}">
+                    <i class="fas ${stock.changePercent >= 0 ? 'fa-arrow-up' : 'fa-arrow-down'}"></i>
+                    ${Math.abs(stock.changePercent).toFixed(2)}%
+                </span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateAIInsight() {
+    const insights = [
+        "AI detects strong institutional buying in technology stocks. Consider accumulating quality tech names.",
+        "Market showing consolidation patterns. Technical analysis suggests potential breakout above key resistance.",
+        "Banking sector fundamentals remain strong with improving asset quality and credit growth.",
+        "Global cues positive as inflation concerns ease across major economies.",
+        "Momentum indicators suggest continued strength in large-cap stocks with earnings momentum."
+    ];
+    document.getElementById('aiInsightText').textContent = insights[Math.floor(Math.random() * insights.length)];
+}
+
+function updateNewsTicker() {
+    const newsItems = [
+        { symbol: "AAPL", text: "Apple announces new AI features for iOS 18", change: 2.5 },
+        { symbol: "TSLA", text: "Tesla deliveries beat estimates in Q1", change: 4.2 },
+        { symbol: "NVDA", text: "NVIDIA unveils next-gen AI chips", change: 5.8 }
+    ];
+
+    document.getElementById('newsTicker').innerHTML = newsItems.map(item => `
+        <div class="ticker-item">
+            <span class="ticker-badge">${item.symbol}</span>
+            <span>${item.text}</span>
+            <span class="metric-change ${item.change >= 0 ? 'positive' : 'negative'}">
+                ${item.change >= 0 ? '+' : ''}${item.change}%
+            </span>
+        </div>
+    `).join('');
+}
+
+function sortStockList(containerId, sortBy) {
+    ThemeManager.showNotification('Sorting feature coming soon', 'info');
+}
+
+function exportReport() {
+    ThemeManager.showNotification('Exporting dashboard report...', 'success');
+}
+
+function toggleTheme() {
+    ThemeManager.toggle();
+}
+
+// Global error handling
+window.addEventListener('error', (e) => {
+    console.error('Global error:', e.error);
+    ThemeManager.showNotification('An unexpected error occurred', 'error');
+});
+</script>
+</body>
+</html>

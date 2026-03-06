@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Stock Trading - AlphaAnalytics</title>
+  
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  
+  <!-- AOS Animation -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  
+  <!-- Shared CSS -->
+  <link rel="stylesheet" href="/static/css/alpha-analytics.css">
+  
+  <style>
+    /* Page-specific styles */
+    .trading-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    @media (max-width: 1024px) {
+      .trading-section {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .trade-type-selector {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .trade-type-btn {
+      flex: 1;
+      padding: 14px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--darker-bg);
+      color: var(--text-secondary);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .trade-type-btn.buy.active {
+      border-color: var(--success);
+      background: var(--gradient-success);
+      color: white;
+    }
+
+    .trade-type-btn.sell.active {
+      border-color: var(--danger);
+      background: var(--gradient-danger);
+      color: white;
+    }
+
+    .price-display {
+      font-size: 48px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      font-family: var(--font-display);
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-align: center;
+    }
+
+    .price-change {
+      font-size: 18px;
+      font-weight: 600;
+      padding: 8px 20px;
+      border-radius: var(--radius-full);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 auto;
+    }
+
+    .price-change.positive {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--success);
+    }
+
+    .price-change.negative {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+    }
+
+    .orders-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .order-card {
+      background: var(--darker-bg);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      border: 1px solid var(--border);
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .order-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--primary);
+      box-shadow: var(--shadow);
+    }
+
+    .order-card.pending { border-left: 4px solid var(--warning); }
+    .order-card.completed { border-left: 4px solid var(--success); }
+    .order-card.cancelled { border-left: 4px solid var(--danger); }
+
+    .order-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .order-symbol {
+      font-size: 20px;
+      font-weight: 700;
+      font-family: var(--font-display);
+    }
+
+    .order-details {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .order-detail {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .detail-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .detail-value {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .order-status {
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+
+    .order-status.pending {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--warning);
+    }
+
+    .order-status.completed {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--success);
+    }
+
+    .order-status.cancelled {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+    }
+
+    .order-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .cancel-btn {
+      padding: 6px 12px;
+      background: var(--danger);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .cancel-btn:hover {
+      background: var(--danger);
+      transform: scale(1.05);
+    }
+
+    .history-controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .history-chart-container {
+      height: 300px;
+      margin-bottom: 28px;
+    }
+
+    .history-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      max-height: 500px;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+
+    .history-item {
+      background: var(--darker-bg);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      border: 1px solid var(--border);
+      transition: all 0.3s;
+    }
+
+    .history-item:hover {
+      transform: translateY(-3px);
+      border-color: var(--primary);
+    }
+
+    .history-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .history-date {
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+      grid-column: 1 / -1;
+    }
+
+    .empty-state i {
+      font-size: 64px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    @media (max-width: 768px) {
+      .history-controls {
+        grid-template-columns: 1fr;
+      }
+      
+      .orders-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .order-details {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="nav-row">
+      <div class="logo">
+        <i class="fas fa-chart-line"></i>
+        AlphaAnalytics
+      </div>
+      
+      <button class="menu-toggle" aria-label="Toggle menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <nav class="nav-items">
+        <a href="/jeet" class="nav-item"><i class="fas fa-home"></i>Dashboard</a>
+        <a href="/portfolio" class="nav-item"><i class="fas fa-briefcase"></i>Portfolio</a>
+        <a href="/mystock" class="nav-item active"><i class="fas fa-star"></i>My Stock</a>
+        <a href="/deposit" class="nav-item"><i class="fas fa-wallet"></i>Deposit</a>
+        <a href="/insight" class="nav-item"><i class="fas fa-brain"></i>Insight</a>
+        <a href="/prediction" class="nav-item"><i class="fas fa-chart-line"></i>Prediction</a>
+        <a href="/news" class="nav-item"><i class="fas fa-newspaper"></i>News</a>
+        <a href="/videos" class="nav-item"><i class="fas fa-video"></i>Videos</a>
+        <a href="/superstars" class="nav-item"><i class="fas fa-trophy"></i>Superstars</a>
+        <a href="/alerts" class="nav-item"><i class="fas fa-bell"></i>Alerts</a>
+        <a href="/help" class="nav-item"><i class="fas fa-question-circle"></i>Help</a>
+        <a href="/profile" class="nav-item"><i class="fas fa-user"></i>Profile</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Header -->
+    <div class="header">
+      <h1><i class="fas fa-exchange-alt"></i> My Stock Trading</h1>
+      <div class="header-controls">
+        <button class="btn btn-secondary" onclick="refreshPrice()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+        <button class="btn btn-secondary" onclick="toggleTheme()">
+          <i class="fas fa-palette"></i> Theme
+        </button>
+      </div>
+    </div>
+
+    <!-- Trading Section -->
+    <div class="trading-section">
+      <!-- Trade Form -->
+      <div class="card" data-aos="fade-right">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fas fa-exchange-alt"></i> Place Order</h3>
+        </div>
+        
+        <form id="tradeForm">
+          <div class="form-group mb-4">
+            <label class="form-label">Stock Symbol</label>
+            <input type="text" id="tickerInput" class="form-control" 
+                   placeholder="e.g. AAPL, MSFT, TSLA" value="AAPL" required>
+          </div>
+
+          <div class="trade-type-selector">
+            <button type="button" class="trade-type-btn buy active" data-type="buy">
+              <i class="fas fa-arrow-up"></i> Buy
+            </button>
+            <button type="button" class="trade-type-btn sell" data-type="sell">
+              <i class="fas fa-arrow-down"></i> Sell
+            </button>
+          </div>
+
+          <div class="form-group mb-4">
+            <label class="form-label">Quantity</label>
+            <input type="number" id="quantity" class="form-control" 
+                   min="1" value="10" required>
+          </div>
+
+          <div class="form-group mb-4">
+            <label class="form-label">Order Type</label>
+            <select id="orderType" class="form-control" required>
+              <option value="market">Market Order</option>
+              <option value="limit">Limit Order</option>
+              <option value="stop">Stop Order</option>
+            </select>
+          </div>
+
+          <div class="form-group mb-4" id="limitPriceGroup" style="display: none;">
+            <label class="form-label">Limit Price</label>
+            <input type="number" id="limitPrice" class="form-control" 
+                   placeholder="Enter limit price" step="0.01">
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100" id="submitTrade">
+            <i class="fas fa-paper-plane"></i> Place Order
+          </button>
+        </form>
+      </div>
+
+      <!-- Live Price Display -->
+      <div class="card" data-aos="fade-left">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fas fa-bolt"></i> Live Market Data</h3>
+        </div>
+        
+        <div class="price-display" id="livePrice">$---.--</div>
+        <div class="price-change" id="priceChange">Loading...</div>
+        
+        <div class="text-center text-muted mt-3">
+          <i class="fas fa-clock"></i> 
+          <span id="updateTime">Updating...</span>
+        </div>
+
+        <div class="flex justify-center gap-3 mt-4">
+          <span class="badge badge-primary">
+            <i class="fas fa-arrow-up"></i> High: $<span id="dayHigh">---</span>
+          </span>
+          <span class="badge badge-warning">
+            <i class="fas fa-arrow-down"></i> Low: $<span id="dayLow">---</span>
+          </span>
+          <span class="badge badge-info">
+            <i class="fas fa-chart-line"></i> Vol: <span id="volume">---</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orders Section -->
+    <div class="card" data-aos="fade-up" data-aos-delay="100">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-list-alt"></i> Your Orders</h3>
+        <button class="btn btn-danger btn-sm" onclick="clearAllOrders()">
+          <i class="fas fa-trash"></i> Clear All
+        </button>
+      </div>
+
+      <div class="orders-grid" id="ordersList">
+        <!-- Orders will be populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- History Section -->
+    <div class="card" data-aos="fade-up" data-aos-delay="200">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-history"></i> Historical Data</h3>
+      </div>
+      
+      <div class="history-controls">
+        <div>
+          <label class="form-label">Symbol</label>
+          <input type="text" id="histTicker" class="form-control" value="AAPL">
+        </div>
+        
+        <div>
+          <label class="form-label">From</label>
+          <input type="date" id="histFrom" class="form-control">
+        </div>
+        
+        <div>
+          <label class="form-label">To</label>
+          <input type="date" id="histTo" class="form-control">
+        </div>
+        
+        <div>
+          <label class="form-label">Interval</label>
+          <select id="interval" class="form-control">
+            <option value="1day">Daily</option>
+            <option value="1week">Weekly</option>
+            <option value="1month">Monthly</option>
+          </select>
+        </div>
+        
+        <div class="flex items-end">
+          <button class="btn btn-primary w-100" id="searchHistoricalBtn">
+            <i class="fas fa-search"></i> Load
+          </button>
+        </div>
+      </div>
+
+      <!-- Chart Container -->
+      <div class="history-chart-container">
+        <canvas id="historicalChart"></canvas>
+      </div>
+
+      <!-- History Stats -->
+      <div class="grid grid-4" id="historyStats" style="margin-bottom: 24px;">
+        <!-- Will be populated by JavaScript -->
+      </div>
+
+      <!-- History List -->
+      <div id="historyList" class="history-list">
+        <!-- Historical data will be populated by JavaScript -->
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- AOS Animation -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+<script>
+// AOS Initialization
+AOS.init({
+  duration: 800,
+  once: true
+});
+
+// Configuration
+const CONFIG = {
+    API_KEY: "5f988a8aff6b4b58848dfcf67af727d9",
+    API_BASE_URL: "https://api.twelvedata.com",
+    DEFAULT_SYMBOL: "AAPL",
+    MAX_ORDERS_DISPLAY: 50,
+    UPDATE_INTERVAL: 30000
+};
+
+// Application State
+const AppState = {
+    currentTradeType: 'buy',
+    orders: JSON.parse(localStorage.getItem('tradingOrders')) || [],
+    currentSymbol: CONFIG.DEFAULT_SYMBOL,
+    priceUpdateInterval: null,
+    historicalChart: null
+};
+
+// Theme Manager
+class ThemeManager {
+    static toggle() {
+        document.body.classList.toggle('light-theme');
+        localStorage.setItem('theme', document.body.classList.contains('light-theme') ? 'light' : 'dark');
+        this.showNotification('Theme changed', 'success');
+    }
+
+    static load() {
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-theme');
+        }
+    }
+
+    static showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                                 type === 'error' ? 'fa-exclamation-circle' : 
+                                 type === 'warning' ? 'fa-exclamation-triangle' : 
+                                 'fa-info-circle'}"></i>
+                <span class="notification-message">${message}</span>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.classList.add('show'), 10);
+        setTimeout(() => notification.remove(), 4000);
+    }
+}
+
+// Mobile Menu
+class MobileMenu {
+    constructor() {
+        this.menuToggle = document.querySelector('.menu-toggle');
+        this.navItems = document.querySelector('.nav-items');
+        this.init();
+    }
+
+    init() {
+        this.menuToggle?.addEventListener('click', () => {
+            this.navItems.classList.toggle('show');
+            this.menuToggle.classList.toggle('active');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.navbar') && this.navItems.classList.contains('show')) {
+                this.navItems.classList.remove('show');
+                this.menuToggle.classList.remove('active');
+            }
+        });
+    }
+}
+
+// API Service
+class TradingAPIService {
+    static async fetchQuote(symbol) {
+        try {
+            const response = await fetch(
+                `${CONFIG.API_BASE_URL}/quote?symbol=${symbol}&apikey=${CONFIG.API_KEY}`
+            );
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            
+            if (data.status === 'error' || data.code) {
+                throw new Error(data.message || 'API error');
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('API fetch error:', error);
+            throw new Error(`Failed to fetch data for ${symbol}`);
+        }
+    }
+
+    static async fetchHistoricalData(symbol, interval = '1day', startDate, endDate) {
+        try {
+            let url = `${CONFIG.API_BASE_URL}/time_series?symbol=${symbol}&interval=${interval}&apikey=${CONFIG.API_KEY}`;
+            
+            if (startDate && endDate) {
+                url += `&start_date=${startDate}&end_date=${endDate}`;
+            }
+            
+            const response = await fetch(url);
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            
+            if (data.status === 'error' || !data.values) {
+                throw new Error(data.message || 'No historical data available');
+            }
+            
+            return data.values;
+        } catch (error) {
+            console.error('Historical data error:', error);
+            throw new Error(`Failed to fetch historical data`);
+        }
+    }
+}
+
+// Price Manager
+class PriceManager {
+    static async updateLivePrice(symbol) {
+        const livePriceElem = document.getElementById('livePrice');
+        const priceChangeElem = document.getElementById('priceChange');
+        const updateTimeElem = document.getElementById('updateTime');
+        const dayHighElem = document.getElementById('dayHigh');
+        const dayLowElem = document.getElementById('dayLow');
+        const volumeElem = document.getElementById('volume');
+        
+        if (!livePriceElem || !priceChangeElem) return;
+        
+        livePriceElem.textContent = "$---.--";
+        priceChangeElem.textContent = "Loading...";
+        priceChangeElem.className = 'price-change';
+        
+        try {
+            const data = await TradingAPIService.fetchQuote(symbol);
+            
+            if (data && data.close) {
+                const price = parseFloat(data.close);
+                const open = parseFloat(data.open);
+                const change = price - open;
+                const changePercent = ((change / open) * 100);
+                
+                livePriceElem.textContent = `$${price.toFixed(2)}`;
+                priceChangeElem.textContent = 
+                    `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent.toFixed(2)}%)`;
+                priceChangeElem.className = `price-change ${change >= 0 ? 'positive' : 'negative'}`;
+                
+                dayHighElem.textContent = data.high ? parseFloat(data.high).toFixed(2) : '---';
+                dayLowElem.textContent = data.low ? parseFloat(data.low).toFixed(2) : '---';
+                volumeElem.textContent = data.volume ? parseInt(data.volume).toLocaleString() : '---';
+                
+                updateTimeElem.textContent = new Date().toLocaleTimeString();
+                
+                AppState.currentSymbol = symbol;
+            }
+        } catch (error) {
+            livePriceElem.textContent = "$---.--";
+            priceChangeElem.textContent = "Data unavailable";
+            priceChangeElem.className = 'price-change';
+        }
+    }
+
+    static startAutoRefresh(symbol) {
+        if (AppState.priceUpdateInterval) {
+            clearInterval(AppState.priceUpdateInterval);
+        }
+        
+        this.updateLivePrice(symbol);
+        
+        AppState.priceUpdateInterval = setInterval(() => {
+            this.updateLivePrice(symbol);
+        }, CONFIG.UPDATE_INTERVAL);
+    }
+}
+
+// Order Manager
+class OrderManager {
+    static addOrder(orderData) {
+        const order = {
+            id: Date.now().toString(),
+            symbol: orderData.symbol,
+            type: orderData.type,
+            quantity: orderData.quantity,
+            orderType: orderData.orderType,
+            price: orderData.price || null,
+            status: 'pending',
+            timestamp: new Date().toISOString(),
+            executedPrice: null
+        };
+        
+        AppState.orders.unshift(order);
+        
+        if (AppState.orders.length > CONFIG.MAX_ORDERS_DISPLAY) {
+            AppState.orders = AppState.orders.slice(0, CONFIG.MAX_ORDERS_DISPLAY);
+        }
+        
+        this.saveOrders();
+        this.renderOrders();
+        
+        this.simulateOrderExecution(order.id);
+        
+        ThemeManager.showNotification(
+            `${order.type.toUpperCase()} order placed for ${order.quantity} shares of ${order.symbol}`,
+            'success'
+        );
+        
+        return order;
+    }
+
+    static cancelOrder(orderId) {
+        const orderIndex = AppState.orders.findIndex(order => order.id === orderId);
+        if (orderIndex !== -1 && AppState.orders[orderIndex].status === 'pending') {
+            AppState.orders[orderIndex].status = 'cancelled';
+            this.saveOrders();
+            this.renderOrders();
+            ThemeManager.showNotification('Order cancelled', 'warning');
+            return true;
+        }
+        return false;
+    }
+
+    static simulateOrderExecution(orderId) {
+        setTimeout(() => {
+            const orderIndex = AppState.orders.findIndex(o => o.id === orderId);
+            if (orderIndex !== -1 && AppState.orders[orderIndex].status === 'pending') {
+                AppState.orders[orderIndex].status = 'completed';
+                AppState.orders[orderIndex].executedPrice = 
+                    AppState.orders[orderIndex].price || 100;
+                this.saveOrders();
+                this.renderOrders();
+                ThemeManager.showNotification(`Order executed`, 'success');
+            }
+        }, 2000 + Math.random() * 3000);
+    }
+
+    static renderOrders() {
+        const container = document.getElementById('ordersList');
+        if (!container) return;
+        
+        if (AppState.orders.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <h3>No Orders Yet</h3>
+                    <p class="text-muted">Place your first trade using the form above</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = AppState.orders.map(order => `
+            <div class="order-card ${order.status}">
+                <div class="order-card-header">
+                    <span class="order-symbol">${order.symbol}</span>
+                    <span class="badge ${order.type === 'buy' ? 'badge-success' : 'badge-danger'}">
+                        <i class="fas ${order.type === 'buy' ? 'fa-arrow-up' : 'fa-arrow-down'}"></i>
+                        ${order.type.toUpperCase()}
+                    </span>
+                </div>
+                
+                <div class="order-details">
+                    <div class="order-detail">
+                        <span class="detail-label">Quantity</span>
+                        <span class="detail-value">${order.quantity}</span>
+                    </div>
+                    <div class="order-detail">
+                        <span class="detail-label">Order Type</span>
+                        <span class="detail-value">${order.orderType}</span>
+                    </div>
+                    <div class="order-detail">
+                        <span class="detail-label">Price</span>
+                        <span class="detail-value">$${(order.executedPrice || order.price || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="order-detail">
+                        <span class="detail-label">Total</span>
+                        <span class="detail-value">$${((order.executedPrice || order.price || 0) * order.quantity).toFixed(2)}</span>
+                    </div>
+                </div>
+                
+                <div class="order-status ${order.status}">
+                    <i class="${this.getStatusIcon(order.status)}"></i>
+                    ${order.status.toUpperCase()}
+                </div>
+                
+                <div class="order-footer">
+                    <span class="text-muted">
+                        <i class="far fa-clock"></i> ${this.formatTime(order.timestamp)}
+                    </span>
+                    ${order.status === 'pending' ? `
+                        <button class="cancel-btn" onclick="cancelOrder('${order.id}')">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    static getStatusIcon(status) {
+        const icons = {
+            pending: 'fas fa-clock',
+            completed: 'fas fa-check-circle',
+            cancelled: 'fas fa-ban'
+        };
+        return icons[status] || 'fas fa-question-circle';
+    }
+
+    static formatTime(timestamp) {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diffMins = Math.floor((now - date) / 60000);
+        
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+        return date.toLocaleDateString();
+    }
+
+    static saveOrders() {
+        localStorage.setItem('tradingOrders', JSON.stringify(AppState.orders));
+    }
+
+    static clearOrders() {
+        if (confirm('Clear all orders?')) {
+            AppState.orders = [];
+            this.saveOrders();
+            this.renderOrders();
+            ThemeManager.showNotification('All orders cleared', 'info');
+        }
+    }
+}
+
+// Historical Data Manager
+class HistoricalDataManager {
+    static chart = null;
+
+    static async loadHistoricalData(symbol, interval, fromDate, toDate) {
+        const historyList = document.getElementById('historyList');
+        const statsContainer = document.getElementById('historyStats');
+        
+        if (!historyList) return;
+        
+        historyList.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <h3>Loading Data</h3>
+                <p class="text-muted">Fetching historical data for ${symbol}...</p>
+            </div>
+        `;
+        
+        try {
+            const data = await TradingAPIService.fetchHistoricalData(symbol, interval, fromDate, toDate);
+            this.renderChart(data, symbol);
+            this.renderStats(data);
+            this.renderHistoryList(data);
+            ThemeManager.showNotification(`Historical data loaded`, 'success');
+        } catch (error) {
+            historyList.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-triangle" style="color: var(--danger);"></i>
+                    <h3>Data Unavailable</h3>
+                    <p class="text-muted">${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    static renderChart(data, symbol) {
+        const ctx = document.getElementById('historicalChart').getContext('2d');
+        
+        if (this.chart) {
+            this.chart.destroy();
+        }
+        
+        const chartData = data.slice(0, 30).reverse();
+        const dates = chartData.map(d => new Date(d.datetime).toLocaleDateString());
+        const prices = chartData.map(d => parseFloat(d.close));
+        
+        this.chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: `${symbol} Close Price`,
+                    data: prices,
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: prices.map((value, index) => {
+                        if (index === 0) return '#6366f1';
+                        return value > prices[index - 1] ? '#22c55e' : '#ef4444';
+                    })
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { 
+                        mode: 'index', 
+                        intersect: false,
+                        callbacks: {
+                            label: (context) => `$${context.raw.toFixed(2)}`
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                        ticks: { 
+                            color: 'var(--text-secondary)',
+                            callback: (value) => '$' + value
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: 'var(--text-secondary)' }
+                    }
+                }
+            }
+        });
+    }
+
+    static renderStats(data) {
+        const statsContainer = document.getElementById('historyStats');
+        if (!statsContainer) return;
+        
+        const prices = data.map(d => parseFloat(d.close));
+        const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+        const maxPrice = Math.max(...prices);
+        const minPrice = Math.min(...prices);
+        const firstPrice = prices[prices.length - 1];
+        const lastPrice = prices[0];
+        const totalReturn = ((lastPrice - firstPrice) / firstPrice * 100).toFixed(2);
+        
+        statsContainer.innerHTML = `
+            <div class="metric-card">
+                <div class="metric-label">Avg Price</div>
+                <div class="metric-value">$${avgPrice.toFixed(2)}</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Highest</div>
+                <div class="metric-value">$${maxPrice.toFixed(2)}</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Lowest</div>
+                <div class="metric-value">$${minPrice.toFixed(2)}</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Total Return</div>
+                <div class="metric-value ${totalReturn >= 0 ? 'text-success' : 'text-danger'}">
+                    ${totalReturn}%
+                </div>
+            </div>
+        `;
+    }
+
+    static renderHistoryList(data) {
+        const historyList = document.getElementById('historyList');
+        if (!historyList) return;
+        
+        historyList.innerHTML = data.slice(0, 20).map(day => {
+            const open = parseFloat(day.open);
+            const high = parseFloat(day.high);
+            const low = parseFloat(day.low);
+            const close = parseFloat(day.close);
+            const change = close - open;
+            const changePercent = ((change / open) * 100).toFixed(2);
+            
+            return `
+                <div class="history-item">
+                    <div class="history-item-header">
+                        <div class="history-date">${new Date(day.datetime).toLocaleDateString()}</div>
+                        <span class="badge ${change >= 0 ? 'badge-success' : 'badge-danger'}">
+                            <i class="fas ${change >= 0 ? 'fa-arrow-up' : 'fa-arrow-down'}"></i>
+                            ${changePercent}%
+                        </span>
+                    </div>
+                    <div class="grid grid-2 gap-2">
+                        <div><small class="text-muted">Open</small><br><strong>$${open.toFixed(2)}</strong></div>
+                        <div><small class="text-muted">Close</small><br><strong>$${close.toFixed(2)}</strong></div>
+                        <div><small class="text-muted">High</small><br><strong>$${high.toFixed(2)}</strong></div>
+                        <div><small class="text-muted">Low</small><br><strong>$${low.toFixed(2)}</strong></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    static setDefaultDates() {
+        const histFrom = document.getElementById('histFrom');
+        const histTo = document.getElementById('histTo');
+        
+        if (histFrom && histTo) {
+            const today = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            histFrom.value = thirtyDaysAgo.toISOString().split('T')[0];
+            histTo.value = today.toISOString().split('T')[0];
+        }
+    }
+}
+
+// Trade Form Manager
+class TradeFormManager {
+    constructor() {
+        this.tradeForm = document.getElementById('tradeForm');
+        this.tickerInput = document.getElementById('tickerInput');
+        this.tradeTypeButtons = document.querySelectorAll('.trade-type-btn');
+        this.orderTypeSelect = document.getElementById('orderType');
+        this.limitPriceGroup = document.getElementById('limitPriceGroup');
+        this.limitPriceInput = document.getElementById('limitPrice');
+        this.init();
+    }
+
+    init() {
+        this.tradeForm?.addEventListener('submit', this.handleSubmit.bind(this));
+        this.tickerInput?.addEventListener('input', this.handleTickerInput.bind(this));
+        this.orderTypeSelect?.addEventListener('change', this.handleOrderTypeChange.bind(this));
+        
+        this.tradeTypeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.tradeTypeButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                AppState.currentTradeType = btn.dataset.type;
+            });
+        });
+    }
+
+    handleOrderTypeChange() {
+        const isLimit = this.orderTypeSelect.value === 'limit' || this.orderTypeSelect.value === 'stop';
+        this.limitPriceGroup.style.display = isLimit ? 'block' : 'none';
+        if (!isLimit) {
+            this.limitPriceInput.value = '';
+        }
+    }
+
+    async handleSubmit(event) {
+        event.preventDefault();
+        
+        const symbol = this.tickerInput.value.trim().toUpperCase();
+        const quantity = parseInt(document.getElementById('quantity').value);
+        const orderType = this.orderTypeSelect.value;
+        const limitPrice = orderType === 'limit' || orderType === 'stop' 
+            ? parseFloat(this.limitPriceInput.value) 
+            : null;
+        
+        if (!symbol) {
+            ThemeManager.showNotification('Please enter a stock symbol', 'error');
+            return;
+        }
+        
+        if (!quantity || quantity <= 0) {
+            ThemeManager.showNotification('Please enter a valid quantity', 'error');
+            return;
+        }
+        
+        if ((orderType === 'limit' || orderType === 'stop') && (!limitPrice || limitPrice <= 0)) {
+            ThemeManager.showNotification('Please enter a valid limit price', 'error');
+            return;
+        }
+        
+        try {
+            const quote = await TradingAPIService.fetchQuote(symbol);
+            const currentPrice = parseFloat(quote.close);
+            
+            OrderManager.addOrder({
+                symbol,
+                type: AppState.currentTradeType,
+                quantity,
+                orderType,
+                price: limitPrice || currentPrice
+            });
+            
+            PriceManager.updateLivePrice(symbol);
+            
+            this.tradeForm.reset();
+            this.tickerInput.value = symbol;
+            this.tradeTypeButtons[0].click();
+            this.handleOrderTypeChange();
+            
+        } catch (error) {
+            ThemeManager.showNotification(`Invalid symbol: ${symbol}`, 'error');
+        }
+    }
+
+    handleTickerInput(event) {
+        const symbol = event.target.value.trim().toUpperCase();
+        if (symbol) {
+            PriceManager.updateLivePrice(symbol);
+            document.getElementById('histTicker').value = symbol;
+        }
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', async () => {
+    ThemeManager.load();
+    new MobileMenu();
+    new TradeFormManager();
+    
+    await PriceManager.updateLivePrice(CONFIG.DEFAULT_SYMBOL);
+    PriceManager.startAutoRefresh(CONFIG.DEFAULT_SYMBOL);
+    
+    HistoricalDataManager.setDefaultDates();
+    
+    OrderManager.renderOrders();
+    
+    document.getElementById('searchHistoricalBtn').addEventListener('click', () => {
+        const symbol = document.getElementById('histTicker').value.trim().toUpperCase();
+        const fromDate = document.getElementById('histFrom').value;
+        const toDate = document.getElementById('histTo').value;
+        const interval = document.getElementById('interval').value;
+        
+        if (!symbol) {
+            ThemeManager.showNotification('Please enter a stock symbol', 'error');
+            return;
+        }
+        
+        HistoricalDataManager.loadHistoricalData(symbol, interval, fromDate, toDate);
+    });
+});
+
+// Global Functions
+function cancelOrder(orderId) {
+    OrderManager.cancelOrder(orderId);
+}
+
+function clearAllOrders() {
+    OrderManager.clearOrders();
+}
+
+function refreshPrice() {
+    const symbol = document.getElementById('tickerInput').value.trim().toUpperCase() || CONFIG.DEFAULT_SYMBOL;
+    PriceManager.updateLivePrice(symbol);
+}
+
+function toggleTheme() {
+    ThemeManager.toggle();
+}
+
+// Error handling
+window.addEventListener('error', (e) => {
+    console.error('Global error:', e.error);
+    ThemeManager.showNotification('An unexpected error occurred', 'error');
+});
+</script>
+</body>
+</html>

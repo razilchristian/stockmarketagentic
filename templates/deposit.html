@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deposit Funds - AlphaAnalytics</title>
+  
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- AOS Animation -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  
+  <!-- Shared CSS -->
+  <link rel="stylesheet" href="/static/css/alpha-analytics.css">
+  
+  <style>
+    .payment-methods {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .payment-method {
+      background: var(--darker-bg);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .payment-method:hover {
+      border-color: var(--primary);
+      transform: translateY(-3px);
+    }
+
+    .payment-method.active {
+      border-color: var(--primary);
+      background: var(--gradient-primary);
+      color: white;
+    }
+
+    .payment-method i {
+      font-size: 32px;
+      margin-bottom: 8px;
+      color: var(--primary);
+    }
+
+    .payment-method.active i {
+      color: white;
+    }
+
+    .payment-method span {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .quick-actions {
+      background: var(--card-bg);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    .quick-actions h3 {
+      font-family: var(--font-display);
+      font-size: 20px;
+      margin-bottom: 20px;
+      color: var(--accent);
+    }
+
+    .action-buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .action-btn {
+      background: var(--darker-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .action-btn:hover {
+      border-color: var(--accent);
+      transform: translateY(-3px);
+      box-shadow: var(--shadow);
+    }
+
+    .action-btn i {
+      color: var(--accent);
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .action-btn div {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .transaction-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: var(--darker-bg);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+      transition: all 0.3s;
+    }
+
+    .transaction-item:hover {
+      transform: translateX(5px);
+      border-color: var(--primary);
+    }
+
+    .transaction-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--success);
+      font-size: 20px;
+    }
+
+    .transaction-amount {
+      font-weight: 700;
+      color: var(--success);
+    }
+
+    @media (max-width: 768px) {
+      .payment-methods {
+        grid-template-columns: 1fr;
+      }
+      
+      .action-buttons {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="nav-row">
+      <div class="logo">
+        <i class="fas fa-chart-line"></i>
+        AlphaAnalytics
+      </div>
+      
+      <button class="menu-toggle" aria-label="Toggle menu">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <nav class="nav-items">
+        <a href="/jeet" class="nav-item"><i class="fas fa-home"></i>Dashboard</a>
+        <a href="/portfolio" class="nav-item"><i class="fas fa-briefcase"></i>Portfolio</a>
+        <a href="/mystock" class="nav-item"><i class="fas fa-star"></i>My Stock</a>
+        <a href="/deposit" class="nav-item active"><i class="fas fa-wallet"></i>Deposit</a>
+        <a href="/insight" class="nav-item"><i class="fas fa-brain"></i>Insight</a>
+        <a href="/prediction" class="nav-item"><i class="fas fa-chart-line"></i>Prediction</a>
+        <a href="/news" class="nav-item"><i class="fas fa-newspaper"></i>News</a>
+        <a href="/videos" class="nav-item"><i class="fas fa-video"></i>Videos</a>
+        <a href="/superstars" class="nav-item"><i class="fas fa-star"></i>Superstars</a>
+        <a href="/alerts" class="nav-item"><i class="fas fa-bell"></i>Alerts</a>
+        <a href="/help" class="nav-item"><i class="fas fa-question-circle"></i>Help</a>
+        <a href="/profile" class="nav-item"><i class="fas fa-user"></i>Profile</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Header -->
+    <div class="header">
+      <h1><i class="fas fa-wallet"></i> Deposit Funds</h1>
+      <div class="header-controls">
+        <button class="btn btn-secondary" onclick="toggleTheme()">
+          <i class="fas fa-palette"></i> Theme
+        </button>
+        <button class="btn btn-secondary" onclick="location.reload()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Balance Cards -->
+    <div class="grid grid-3" data-aos="fade-up">
+      <div class="metric-card">
+        <div class="metric-label"><i class="fas fa-coins"></i> Available Balance</div>
+        <div class="metric-value" id="balanceAmount">₹5,000</div>
+        <span class="badge badge-success">Ready to Invest</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label"><i class="fas fa-calendar"></i> This Month</div>
+        <div class="metric-value" id="monthlyAmount">₹12,500</div>
+        <span class="badge badge-success">+150% Growth</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label"><i class="fas fa-chart-line"></i> Total Deposits</div>
+        <div class="metric-value" id="totalAmount">₹87,500</div>
+        <span class="badge badge-info">Lifetime</span>
+      </div>
+    </div>
+
+    <!-- Deposit Section -->
+    <div class="grid grid-2" data-aos="fade-up" data-aos-delay="100">
+      <!-- Form -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fas fa-money-bill-wave"></i> Add Funds</h3>
+        </div>
+        
+        <form id="depositForm">
+          <div class="form-group mb-4">
+            <label class="form-label">Amount (₹)</label>
+            <input type="number" id="amount" class="form-control" value="5000" min="100">
+          </div>
+
+          <div class="form-group mb-4">
+            <label class="form-label">Payment Method</label>
+            <div class="payment-methods">
+              <div class="payment-method active" onclick="selectMethod(this, 'upi')">
+                <i class="fas fa-mobile-alt"></i>
+                <span>UPI</span>
+              </div>
+              <div class="payment-method" onclick="selectMethod(this, 'netbanking')">
+                <i class="fas fa-university"></i>
+                <span>Net Banking</span>
+              </div>
+              <div class="payment-method" onclick="selectMethod(this, 'card')">
+                <i class="fas fa-credit-card"></i>
+                <span>Card</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group mb-4">
+            <label class="form-label">Payment Details</label>
+            <input type="text" id="details" class="form-control" placeholder="UPI ID / Card Number">
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fas fa-lock"></i> Secure Deposit
+          </button>
+        </form>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="quick-actions">
+        <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+        <div class="action-buttons">
+          <div class="action-btn" onclick="quickDeposit(1000)">
+            <i class="fas fa-bolt"></i>
+            <div>₹1,000</div>
+          </div>
+          <div class="action-btn" onclick="quickDeposit(5000)">
+            <i class="fas fa-bolt"></i>
+            <div>₹5,000</div>
+          </div>
+          <div class="action-btn" onclick="quickDeposit(10000)">
+            <i class="fas fa-bolt"></i>
+            <div>₹10,000</div>
+          </div>
+          <div class="action-btn" onclick="quickDeposit(25000)">
+            <i class="fas fa-bolt"></i>
+            <div>₹25,000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Insight -->
+    <div class="ai-insight" data-aos="fade-up" data-aos-delay="200">
+      <div class="ai-insight-header">
+        <i class="fas fa-robot"></i>
+        <h3>AI Financial Insight</h3>
+      </div>
+      <div class="ai-content" id="aiInsight">
+        Based on your deposit pattern, consider setting up auto-investments for better portfolio growth.
+      </div>
+    </div>
+
+    <!-- Transactions -->
+    <div class="card" data-aos="fade-up" data-aos-delay="300">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-history"></i> Transaction History</h3>
+        <button class="btn btn-secondary btn-sm" onclick="exportHistory()">
+          <i class="fas fa-download"></i> Export
+        </button>
+      </div>
+      
+      <div id="transactionList">
+        <div class="empty-state">
+          <i class="fas fa-receipt"></i>
+          <h3>No Transactions Yet</h3>
+          <p class="text-muted">Your deposit history will appear here</p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- AOS Animation -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+<script>
+// AOS Initialization
+AOS.init({
+  duration: 800,
+  once: true
+});
+
+// State
+let balance = 5000;
+let monthly = 12500;
+let total = 87500;
+let transactions = [];
+let selectedMethod = 'upi';
+
+// Load from localStorage
+if (localStorage.getItem('balance')) {
+  balance = parseInt(localStorage.getItem('balance'));
+  monthly = parseInt(localStorage.getItem('monthly')) || 12500;
+  total = parseInt(localStorage.getItem('total')) || 87500;
+  transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+}
+
+// Update Display
+function updateDisplay() {
+  document.getElementById('balanceAmount').innerHTML = '₹' + balance.toLocaleString();
+  document.getElementById('monthlyAmount').innerHTML = '₹' + monthly.toLocaleString();
+  document.getElementById('totalAmount').innerHTML = '₹' + total.toLocaleString();
+
+  const list = document.getElementById('transactionList');
+  if (transactions.length === 0) {
+    list.innerHTML = `<div class="empty-state"><i class="fas fa-receipt"></i><h3>No Transactions Yet</h3><p class="text-muted">Your deposit history will appear here</p></div>`;
+  } else {
+    list.innerHTML = transactions.map(t => `
+      <div class="transaction-item">
+        <div class="flex items-center gap-3">
+          <div class="transaction-icon"><i class="fas fa-arrow-down"></i></div>
+          <div>
+            <h4>₹${t.amount.toLocaleString()}</h4>
+            <p class="text-muted">${t.method} • ${t.date}</p>
+          </div>
+        </div>
+        <div class="transaction-amount">+₹${t.amount.toLocaleString()}</div>
+      </div>
+    `).join('');
+  }
+}
+
+// Select Payment Method
+function selectMethod(element, method) {
+  document.querySelectorAll('.payment-method').forEach(el => el.classList.remove('active'));
+  element.classList.add('active');
+  selectedMethod = method;
+}
+
+// Submit Form
+document.getElementById('depositForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const amount = parseInt(document.getElementById('amount').value);
+  const details = document.getElementById('details').value;
+
+  if (amount < 100) {
+    showNotification('Minimum deposit is ₹100', 'error');
+    return;
+  }
+  if (!details) {
+    showNotification('Please enter payment details', 'error');
+    return;
+  }
+
+  showNotification('Processing your deposit...', 'info');
+
+  setTimeout(() => {
+    const transaction = {
+      amount: amount,
+      method: selectedMethod,
+      date: new Date().toLocaleString()
+    };
+
+    transactions.unshift(transaction);
+    balance += amount;
+    monthly += amount;
+    total += amount;
+
+    localStorage.setItem('balance', balance);
+    localStorage.setItem('monthly', monthly);
+    localStorage.setItem('total', total);
+    localStorage.setItem('transactions', JSON.stringify(transactions));
+
+    updateDisplay();
+    showNotification(`₹${amount.toLocaleString()} deposited successfully!`, 'success');
+    
+    document.getElementById('depositForm').reset();
+    document.getElementById('amount').value = 5000;
+  }, 2000);
+});
+
+// Quick Deposit
+function quickDeposit(amount) {
+  document.getElementById('amount').value = amount;
+  showNotification(`Quick deposit of ₹${amount.toLocaleString()} ready!`, 'info');
+}
+
+// Export History
+function exportHistory() {
+  if (transactions.length === 0) return showNotification('No transactions to export', 'error');
+  
+  let csv = "Amount,Method,Date\n";
+  csv += transactions.map(t => `${t.amount},${t.method},${t.date}`).join('\n');
+  
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'transactions.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  showNotification('Transactions exported', 'success');
+}
+
+// Theme Toggle
+function toggleTheme() {
+  document.body.classList.toggle('light-theme');
+  localStorage.setItem('theme', document.body.classList.contains('light-theme') ? 'light' : 'dark');
+  showNotification('Theme changed', 'success');
+}
+
+// Notification System
+function showNotification(message, type = 'info') {
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.innerHTML = `
+    <div class="notification-content">
+      <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                       type === 'error' ? 'fa-exclamation-circle' : 
+                       'fa-info-circle'} notification-icon"></i>
+      <span class="notification-message">${message}</span>
+      <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  `;
+  document.body.appendChild(notification);
+  setTimeout(() => notification.classList.add('show'), 10);
+  setTimeout(() => notification.remove(), 4000);
+}
+
+// Load theme
+if (localStorage.getItem('theme') === 'light') {
+  document.body.classList.add('light-theme');
+}
+
+// Initialize
+updateDisplay();
+
+// Make functions global
+window.selectMethod = selectMethod;
+window.quickDeposit = quickDeposit;
+window.exportHistory = exportHistory;
+window.toggleTheme = toggleTheme;
+window.showNotification = showNotification;
+</script>
+</body>
+</html>

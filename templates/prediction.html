@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Predictions - AlphaAnalytics</title>
+
+<!-- Lightweight Charts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.0.1/lightweight-charts.standalone.production.js"></script>
+
+<!-- Fonts & Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<!-- AOS Animation -->
+<link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- Shared CSS -->
+<link rel="stylesheet" href="/static/css/alpha-analytics.css">
+
+<style>
+  .prediction-dashboard {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 900px) {
+    .prediction-dashboard {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .stock-list {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .stock-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: var(--darker-bg);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+
+  .stock-item:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    background: var(--card-hover);
+  }
+
+  .stock-item.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+
+  .stock-info .symbol {
+    font-weight: 600;
+    font-size: 16px;
+  }
+
+  .stock-info .name {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .stock-item.active .name {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .prediction-chart {
+    height: 200px;
+    background: var(--darker-bg);
+    border-radius: var(--radius-lg);
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .prediction-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 768px) {
+    .prediction-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .prediction-box {
+    background: var(--darker-bg);
+    padding: 16px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .prediction-box-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+
+  .prediction-box-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: var(--font-display);
+    margin-bottom: 4px;
+  }
+
+  .prediction-box-range {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .confidence-chart-container {
+    height: 250px;
+    margin-bottom: 24px;
+  }
+
+  .risk-section {
+    margin-bottom: 24px;
+  }
+
+  .risk-card {
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .risk-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .risk-score {
+    font-size: 32px;
+    font-weight: 700;
+    font-family: var(--font-display);
+  }
+
+  .risk-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: var(--darker-bg);
+    border-radius: var(--radius-md);
+    margin-bottom: 8px;
+    border-left: 4px solid transparent;
+  }
+
+  .risk-item.critical { border-left-color: var(--danger); }
+  .risk-item.high { border-left-color: var(--warning); }
+  .risk-item.medium { border-left-color: var(--accent); }
+  .risk-item.low { border-left-color: var(--success); }
+
+  .recommendation-card {
+    background: var(--gradient-primary);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    color: white;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  .indicators-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 768px) {
+    .indicators-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .indicator-item {
+    background: var(--darker-bg);
+    padding: 16px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+  }
+
+  .indicator-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+
+  .indicator-value {
+    font-size: 18px;
+    font-weight: 600;
+    font-family: var(--font-display);
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="nav-row">
+      <div class="logo">
+        <i class="fas fa-chart-line"></i>
+        AlphaAnalytics
+      </div>
+      
+      <button class="menu-toggle">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <nav class="nav-items">
+        <a href="/jeet" class="nav-item"><i class="fas fa-home"></i>Dashboard</a>
+        <a href="/portfolio" class="nav-item"><i class="fas fa-briefcase"></i>Portfolio</a>
+        <a href="/mystock" class="nav-item"><i class="fas fa-star"></i>My Stock</a>
+        <a href="/deposit" class="nav-item"><i class="fas fa-wallet"></i>Deposit</a>
+        <a href="/insight" class="nav-item"><i class="fas fa-brain"></i>Insight</a>
+        <a href="/prediction" class="nav-item active"><i class="fas fa-chart-line"></i>Prediction</a>
+        <a href="/news" class="nav-item"><i class="fas fa-newspaper"></i>News</a>
+        <a href="/videos" class="nav-item"><i class="fas fa-video"></i>Videos</a>
+        <a href="/superstars" class="nav-item"><i class="fas fa-star"></i>Superstars</a>
+        <a href="/alerts" class="nav-item"><i class="fas fa-bell"></i>Alerts</a>
+        <a href="/help" class="nav-item"><i class="fas fa-question-circle"></i>Help</a>
+        <a href="/profile" class="nav-item"><i class="fas fa-user"></i>Profile</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Header -->
+    <div class="header">
+      <h1><i class="fas fa-brain"></i> AI Stock Predictions</h1>
+      <div class="header-controls">
+        <div class="search-container">
+          <i class="fas fa-search search-icon"></i>
+          <input id="globalSearch" class="search-bar" placeholder="Search stocks..." />
+        </div>
+        <button class="btn btn-secondary" id="themeBtn">
+          <i class="fas fa-palette"></i>Theme
+        </button>
+      </div>
+    </div>
+
+    <!-- AI Insight -->
+    <div class="ai-insight" data-aos="fade-up">
+      <div class="ai-insight-header">
+        <i class="fas fa-robot ai-icon"></i>
+        <h3>Gemini AI Analysis</h3>
+      </div>
+      <div class="ai-content" id="aiInsight">
+        Select a stock and click Predict for AI-powered analysis with confidence bands and risk assessment.
+      </div>
+    </div>
+
+    <!-- Quick Metrics -->
+    <div class="grid grid-4" id="quickMetrics" data-aos="fade-up" data-aos-delay="100">
+      <div class="metric-card">
+        <div class="metric-label">Current Price</div>
+        <div class="metric-value" id="metricPrice">—</div>
+        <div class="metric-change" id="metricChange"></div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Volatility</div>
+        <div class="metric-value" id="metricVolatility">—</div>
+        <div class="metric-change">Annualized</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">RSI (14)</div>
+        <div class="metric-value" id="metricRSI">—</div>
+        <div class="metric-change" id="rsiStatus"></div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Risk Score</div>
+        <div class="metric-value" id="metricRisk">—</div>
+        <div class="metric-change" id="riskLevel"></div>
+      </div>
+    </div>
+
+    <!-- Prediction Dashboard -->
+    <div class="prediction-dashboard" data-aos="fade-up" data-aos-delay="200">
+      <!-- Stock Selector -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fas fa-search"></i> Select Stock</h3>
+        </div>
+        <div class="stock-search-container" style="position: relative; margin-bottom: 16px;">
+          <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+          <input id="stockSearch" class="search-bar" style="padding-left: 40px;" placeholder="Search symbol...">
+        </div>
+        <div class="stock-list" id="stockList"></div>
+      </div>
+
+      <!-- Prediction Card -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title" id="selectedStock">Select a stock</h3>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" id="predictBtn">
+              <i class="fas fa-chart-line"></i>Predict
+            </button>
+            <button class="btn btn-secondary" id="refreshBtn">
+              <i class="fas fa-sync-alt"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Confidence Chart -->
+        <div class="confidence-chart-container">
+          <canvas id="confidenceChart"></canvas>
+        </div>
+
+        <!-- Prediction Grid -->
+        <div class="prediction-grid" id="predictionGrid"></div>
+
+        <!-- Recommendation -->
+        <div class="recommendation-card" id="recommendationCard" style="display: none;">
+          <div class="recommendation-label">AI Recommendation</div>
+          <div class="recommendation-value" id="recommendation"></div>
+          <div class="recommendation-trend" id="trendStrength"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk Analysis -->
+    <div class="risk-section" id="riskSection" style="display: none;" data-aos="fade-up" data-aos-delay="300">
+      <h3 class="mb-4"><i class="fas fa-shield-alt"></i> Risk Analysis</h3>
+      <div class="risk-card" id="riskSummary"></div>
+      <div id="riskList"></div>
+    </div>
+
+    <!-- Technical Indicators -->
+    <div class="indicators-grid" id="indicatorsGrid" style="display: none;" data-aos="fade-up" data-aos-delay="400"></div>
+  </main>
+</div>
+
+<!-- AOS Animation -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+<script>
+// AOS Initialization
+AOS.init({
+  duration: 800,
+  once: true,
+  easing: 'ease-in-out'
+});
+
+// Configuration
+const CONFIG = {
+  API_BASE_URL: window.location.origin,
+  NOTIFICATION_DURATION: 4000
+};
+
+// App State
+const AppState = {
+  allStocks: [
+    { symbol: "AAPL", name: "Apple Inc." },
+    { symbol: "MSFT", name: "Microsoft Corp." },
+    { symbol: "GOOGL", name: "Alphabet Inc." },
+    { symbol: "AMZN", name: "Amazon.com Inc." },
+    { symbol: "TSLA", name: "Tesla Inc." },
+    { symbol: "NVDA", name: "NVIDIA Corp." },
+    { symbol: "META", name: "Meta Platforms" },
+    { symbol: "JPM", name: "JPMorgan Chase" },
+    { symbol: "V", name: "Visa Inc." },
+    { symbol: "WMT", name: "Walmart Inc." }
+  ],
+  selectedStock: null,
+  isGenerating: false,
+  chart: null
+};
+
+// Theme Manager
+class ThemeManager {
+  static toggle() {
+    document.body.classList.toggle('light-theme');
+    localStorage.setItem('theme', document.body.classList.contains('light-theme') ? 'light' : 'dark');
+    this.showNotification('Theme changed', 'success');
+  }
+
+  static load() {
+    if (localStorage.getItem('theme') === 'light') {
+      document.body.classList.add('light-theme');
+    }
+  }
+
+  static showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+      <div class="notification-content">
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                         type === 'error' ? 'fa-exclamation-circle' : 
+                         type === 'warning' ? 'fa-exclamation-triangle' : 
+                         'fa-info-circle'} notification-icon"></i>
+        <span class="notification-message">${message}</span>
+        <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.classList.add('show'), 10);
+    setTimeout(() => notification.remove(), CONFIG.NOTIFICATION_DURATION);
+  }
+}
+
+// Mobile Menu
+class MobileMenu {
+  constructor() {
+    this.menuToggle = document.querySelector('.menu-toggle');
+    this.navItems = document.querySelector('.nav-items');
+    this.init();
+  }
+
+  init() {
+    this.menuToggle?.addEventListener('click', () => {
+      this.navItems.classList.toggle('show');
+      this.menuToggle.classList.toggle('active');
+    });
+  }
+}
+
+// Stock List Manager
+class StockListManager {
+  constructor() {
+    this.listEl = document.getElementById('stockList');
+    this.searchEl = document.getElementById('stockSearch');
+    this.init();
+  }
+
+  init() {
+    this.render();
+    this.searchEl?.addEventListener('input', () => this.filter());
+  }
+
+  render() {
+    this.listEl.innerHTML = '';
+    AppState.allStocks.forEach(stock => {
+      this.listEl.appendChild(this.createItem(stock));
+    });
+    if (AppState.allStocks.length > 0) {
+      this.select(AppState.allStocks[0]);
+    }
+  }
+
+  createItem(stock) {
+    const item = document.createElement('div');
+    item.className = 'stock-item';
+    item.innerHTML = `
+      <div class="stock-info">
+        <div class="symbol">${stock.symbol}</div>
+        <div class="name">${stock.name}</div>
+      </div>
+    `;
+    item.addEventListener('click', () => this.select(stock));
+    return item;
+  }
+
+  select(stock) {
+    document.querySelectorAll('.stock-item').forEach(i => i.classList.remove('active'));
+    const found = Array.from(document.querySelectorAll('.stock-item')).find(
+      i => i.querySelector('.symbol').textContent === stock.symbol
+    );
+    if (found) found.classList.add('active');
+    
+    AppState.selectedStock = stock;
+    document.getElementById('selectedStock').textContent = `${stock.symbol} - ${stock.name}`;
+    this.resetDisplay();
+  }
+
+  filter() {
+    const query = this.searchEl.value.toLowerCase();
+    document.querySelectorAll('.stock-item').forEach(item => {
+      item.style.display = item.textContent.toLowerCase().includes(query) ? 'flex' : 'none';
+    });
+  }
+
+  resetDisplay() {
+    document.getElementById('metricPrice').textContent = '—';
+    document.getElementById('metricChange').textContent = '';
+    document.getElementById('metricVolatility').textContent = '—';
+    document.getElementById('metricRSI').textContent = '—';
+    document.getElementById('rsiStatus').textContent = '';
+    document.getElementById('metricRisk').textContent = '—';
+    document.getElementById('riskLevel').textContent = '';
+    document.getElementById('aiInsight').textContent = 'Select a stock and click Predict for AI-powered analysis.';
+    document.getElementById('riskSection').style.display = 'none';
+    document.getElementById('indicatorsGrid').style.display = 'none';
+    document.getElementById('recommendationCard').style.display = 'none';
+    document.getElementById('predictionGrid').innerHTML = '';
+    
+    if (AppState.chart) {
+      AppState.chart.destroy();
+      AppState.chart = null;
+    }
+  }
+}
+
+// Prediction Display
+class PredictionDisplay {
+  static update(data) {
+    if (!data) return;
+
+    document.getElementById('metricPrice').textContent = `$${data.current_price?.toFixed(2)}`;
+    document.getElementById('metricChange').textContent = 
+      `${data.change_percent > 0 ? '+' : ''}${data.change_percent?.toFixed(2)}%`;
+    document.getElementById('metricVolatility').textContent = `${data.volatility?.toFixed(1)}%`;
+    document.getElementById('metricRSI').textContent = data.rsi?.toFixed(1);
+    
+    const rsi = data.rsi;
+    let rsiStatus = '';
+    if (rsi > 70) rsiStatus = 'Overbought';
+    else if (rsi < 30) rsiStatus = 'Oversold';
+    else rsiStatus = 'Neutral';
+    document.getElementById('rsiStatus').textContent = rsiStatus;
+    
+    document.getElementById('aiInsight').textContent = data.ai_analysis || 'Analysis complete.';
+    
+    if (data.risk_analysis) {
+      document.getElementById('metricRisk').textContent = data.risk_analysis.risk_score;
+      document.getElementById('riskLevel').textContent = data.risk_analysis.risk_level;
+      this.updateRiskAnalysis(data.risk_analysis);
+    }
+    
+    if (data.prediction) {
+      this.updatePredictionGrid(data.prediction);
+      this.updateConfidenceChart(data.prediction, data.current_price);
+    }
+    
+    if (data.prediction?.recommendation) {
+      document.getElementById('recommendation').textContent = data.prediction.recommendation;
+      document.getElementById('trendStrength').textContent = 
+        `${data.prediction.trend} (Strength: ${data.prediction.trend_strength}%)`;
+      document.getElementById('recommendationCard').style.display = 'block';
+    }
+    
+    if (data.technical_indicators) {
+      this.updateIndicators(data.technical_indicators);
+    }
+  }
+
+  static updatePredictionGrid(prediction) {
+    const grid = document.getElementById('predictionGrid');
+    grid.innerHTML = '';
+    
+    ['open', 'high', 'low', 'close'].forEach(item => {
+      if (prediction[item]) {
+        const pred = prediction[item];
+        const box = document.createElement('div');
+        box.className = 'prediction-box';
+        
+        let confidenceClass = 'badge-warning';
+        if (pred.confidence >= 80) confidenceClass = 'badge-success';
+        else if (pred.confidence <= 50) confidenceClass = 'badge-danger';
+        
+        box.innerHTML = `
+          <div class="prediction-box-label">${item.toUpperCase()}</div>
+          <div class="prediction-box-value">$${pred.value.toFixed(2)}</div>
+          <div class="prediction-box-range">$${pred.lower_bound.toFixed(2)} - $${pred.upper_bound.toFixed(2)}</div>
+          <span class="badge ${confidenceClass} mt-2">${pred.confidence}% Confidence</span>
+        `;
+        
+        grid.appendChild(box);
+      }
+    });
+  }
+
+  static updateConfidenceChart(prediction, currentPrice) {
+    const ctx = document.getElementById('confidenceChart').getContext('2d');
+    
+    if (AppState.chart) {
+      AppState.chart.destroy();
+    }
+    
+    AppState.chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: ['Current', 'Predicted'],
+        datasets: [
+          {
+            label: 'Upper Bound (90%)',
+            data: [currentPrice, prediction.close.upper_bound],
+            borderColor: 'rgba(99, 102, 241, 0.3)',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            fill: '+1',
+            tension: 0.4,
+            pointRadius: 0
+          },
+          {
+            label: 'Upper Bound (75%)',
+            data: [currentPrice, (prediction.close.upper_bound + prediction.close.value) / 2],
+            borderColor: 'rgba(99, 102, 241, 0.5)',
+            backgroundColor: 'rgba(99, 102, 241, 0.2)',
+            fill: '+1',
+            tension: 0.4,
+            pointRadius: 0
+          },
+          {
+            label: 'Prediction',
+            data: [currentPrice, prediction.close.value],
+            borderColor: '#6366f1',
+            borderWidth: 3,
+            pointBackgroundColor: '#6366f1',
+            pointRadius: 5
+          },
+          {
+            label: 'Lower Bound (75%)',
+            data: [currentPrice, (prediction.close.lower_bound + prediction.close.value) / 2],
+            borderColor: 'rgba(99, 102, 241, 0.5)',
+            backgroundColor: 'rgba(99, 102, 241, 0.2)',
+            fill: false,
+            tension: 0.4,
+            pointRadius: 0
+          },
+          {
+            label: 'Lower Bound (90%)',
+            data: [currentPrice, prediction.close.lower_bound],
+            borderColor: 'rgba(99, 102, 241, 0.3)',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            fill: '-1',
+            tension: 0.4,
+            pointRadius: 0
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { mode: 'index', intersect: false }
+        },
+        scales: {
+          y: {
+            grid: { color: 'rgba(255,255,255,0.1)' },
+            ticks: { callback: v => '$' + v.toFixed(2) }
+          }
+        }
+      }
+    });
+  }
+
+  static updateRiskAnalysis(risk) {
+    document.getElementById('riskSection').style.display = 'block';
+    
+    const summary = document.getElementById('riskSummary');
+    summary.innerHTML = `
+      <div class="risk-header">
+        <span class="risk-score">${risk.risk_score}</span>
+        <span class="badge ${risk.risk_level === 'CRITICAL' ? 'badge-danger' : 
+                              risk.risk_level === 'HIGH' ? 'badge-warning' : 
+                              risk.risk_level === 'MEDIUM' ? 'badge-info' : 
+                              'badge-success'}">${risk.risk_level}</span>
+      </div>
+      <div class="grid grid-3">
+        <div><small>VaR 95%</small><br><strong>${risk.var_95?.toFixed(2)}%</strong></div>
+        <div><small>VaR 99%</small><br><strong>${risk.var_99?.toFixed(2)}%</strong></div>
+        <div><small>Sharpe</small><br><strong>${risk.sharpe_ratio?.toFixed(2)}</strong></div>
+      </div>
+    `;
+    
+    const list = document.getElementById('riskList');
+    list.innerHTML = '<h4 class="mb-3">Risk Factors</h4>';
+    
+    risk.risks?.forEach(r => {
+      const item = document.createElement('div');
+      item.className = `risk-item ${r.level.toLowerCase()}`;
+      item.innerHTML = `
+        <i class="fas fa-exclamation-triangle"></i>
+        <div class="flex-1">
+          <div class="font-600">${r.type}</div>
+          <div class="text-muted">${r.message}</div>
+          <div class="text-muted" style="font-size: 12px; margin-top: 4px;">${r.mitigation || r.impact}</div>
+        </div>
+      `;
+      list.appendChild(item);
+    });
+  }
+
+  static updateIndicators(indicators) {
+    document.getElementById('indicatorsGrid').style.display = 'grid';
+    const grid = document.getElementById('indicatorsGrid');
+    grid.innerHTML = '';
+    
+    const items = [
+      { label: '20-Day MA', value: indicators.ma_20 },
+      { label: '50-Day MA', value: indicators.ma_50 },
+      { label: 'BB Upper', value: indicators.bb_upper },
+      { label: 'BB Lower', value: indicators.bb_lower },
+      { label: 'MACD', value: indicators.macd },
+      { label: 'Signal', value: indicators.signal },
+      { label: 'Momentum', value: indicators.momentum + '%' }
+    ];
+    
+    items.forEach(item => {
+      if (item.value) {
+        const div = document.createElement('div');
+        div.className = 'indicator-item';
+        div.innerHTML = `
+          <div class="indicator-label">${item.label}</div>
+          <div class="indicator-value">${typeof item.value === 'number' ? item.value.toFixed(2) : item.value}</div>
+        `;
+        grid.appendChild(div);
+      }
+    });
+  }
+}
+
+// Prediction Manager
+class PredictionManager {
+  static async generate() {
+    if (!AppState.selectedStock) {
+      ThemeManager.showNotification('Select a stock first', 'error');
+      return;
+    }
+    
+    if (AppState.isGenerating) return;
+    
+    AppState.isGenerating = true;
+    this.updateButtons(true);
+    
+    try {
+      const response = await fetch(`${CONFIG.API_BASE_URL}/api/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: AppState.selectedStock.symbol })
+      });
+      
+      if (!response.ok) throw new Error('Prediction failed');
+      
+      const data = await response.json();
+      PredictionDisplay.update(data);
+      ThemeManager.showNotification('Predictions ready', 'success');
+      
+    } catch (err) {
+      ThemeManager.showNotification(err.message, 'error');
+    } finally {
+      AppState.isGenerating = false;
+      this.updateButtons(false);
+    }
+  }
+
+  static updateButtons(loading) {
+    const btn = document.getElementById('predictBtn');
+    btn.disabled = loading;
+    btn.innerHTML = loading ? 
+      '<i class="fas fa-spinner fa-spin"></i> Predicting...' : 
+      '<i class="fas fa-chart-line"></i> Predict';
+  }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  ThemeManager.load();
+  new MobileMenu();
+  
+  const stockManager = new StockListManager();
+  
+  document.getElementById('predictBtn').addEventListener('click', () => PredictionManager.generate());
+  document.getElementById('refreshBtn').addEventListener('click', () => PredictionManager.generate());
+  document.getElementById('themeBtn').addEventListener('click', () => ThemeManager.toggle());
+});
+</script>
+</body>
+</html>
