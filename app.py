@@ -1,4 +1,4 @@
-# AlphaAnalytics Agentic AI Backend - Fixed Version with Agentic Analysis
+# AlphaAnalytics Agentic AI Backend - Fixed Version with Live Data Support
 
 import os
 import yfinance as yf
@@ -42,6 +42,10 @@ CORS(app)
 
 HISTORY_DIR = "history"
 os.makedirs(HISTORY_DIR, exist_ok=True)
+
+# Cache for stock data to reduce API calls
+stock_cache = {}
+CACHE_DURATION = 60  # seconds
 
 # ---------------------------------
 # HELPER FUNCTIONS
@@ -101,14 +105,24 @@ def calculate_technical_indicators(data):
     return df
 
 # ---------------------------------
-# ENHANCED STOCK DATA FETCH
+# ENHANCED STOCK DATA FETCH WITH CACHING
 # ---------------------------------
 
-def get_stock_data(symbol):
+def get_stock_data(symbol, force_refresh=False):
+    """Fetch stock data with caching to reduce API calls"""
+    
+    # Check cache first
+    if not force_refresh and symbol in stock_cache:
+        cache_time, cache_data = stock_cache[symbol]
+        if (datetime.now() - cache_time).seconds < CACHE_DURATION:
+            print(f"Using cached data for {symbol}")
+            return cache_data
+    
     try:
+        print(f"Fetching fresh data for {symbol} from yfinance...")
         stock = yf.Ticker(symbol)
         
-        # Fetch more historical data for better analysis
+        # Fetch historical data for analysis
         data = stock.history(period="1y")
         
         if data.empty:
@@ -154,8 +168,19 @@ def get_stock_data(symbol):
         current_macd = float(df['MACD'].iloc[-1]) if not pd.isna(df['MACD'].iloc[-1]) else 0
         current_signal = float(df['Signal'].iloc[-1]) if not pd.isna(df['Signal'].iloc[-1]) else 0
         
-        return {
+        # Get 52-week high/low
+        week_52_high = float(data["High"].tail(252).max()) if len(data) >= 252 else current_price * 1.2
+        week_52_low = float(data["Low"].tail(252).min()) if len(data) >= 252 else current_price * 0.8
+        
+        # Get market cap and other info
+        info = stock.info
+        market_cap = info.get('marketCap', 0)
+        pe_ratio = info.get('trailingPE', 0)
+        
+        result = {
+            "symbol": symbol,
             "current_price": current_price,
+            "change": change,
             "change_percent": change_percent,
             "recent_prices": recent_prices,
             "volatility": volatility,
@@ -164,6 +189,8 @@ def get_stock_data(symbol):
             "volume_trend": volume_trend,
             "day_high": recent_high,
             "day_low": recent_low,
+            "week_52_high": week_52_high,
+            "week_52_low": week_52_low,
             "support": recent_low * 0.98,
             "resistance": recent_high * 1.02,
             "rsi": current_rsi,
@@ -176,12 +203,96 @@ def get_stock_data(symbol):
             "ma_50": float(df['MA50'].iloc[-1]) if not pd.isna(df['MA50'].iloc[-1]) else current_price,
             "bb_upper": float(df['BB_upper'].iloc[-1]) if not pd.isna(df['BB_upper'].iloc[-1]) else current_price * 1.1,
             "bb_lower": float(df['BB_lower'].iloc[-1]) if not pd.isna(df['BB_lower'].iloc[-1]) else current_price * 0.9,
-            "momentum": float(df['Momentum'].iloc[-1]) if not pd.isna(df['Momentum'].iloc[-1]) else 0
+            "momentum": float(df['Momentum'].iloc[-1]) if not pd.isna(df['Momentum'].iloc[-1]) else 0,
+            "market_cap": market_cap,
+            "pe_ratio": pe_ratio,
+            "timestamp": datetime.now().isoformat()
         }
         
+        # Store in cache
+        stock_cache[symbol] = (datetime.now(), result)
+        
+        return result
+        
     except Exception as e:
-        print("Stock fetch error:", e)
+        print(f"Stock fetch error for {symbol}:", e)
         return None
+
+# ---------------------------------
+# NEW: LIVE QUOTE ENDPOINT FOR REAL-TIME DATA
+# ---------------------------------
+
+@app.route("/api/live-quote/<symbol>", methods=["GET"])
+def live_quote(symbol):
+    """Get REAL-TIME stock data from yfinance"""
+    try:
+        symbol = symbol.upper()
+        
+        if not validate_stock_symbol(symbol):
+            return jsonify({"error": "Invalid symbol"}), 400
+        
+        # Force refresh to get latest data
+        stock_data = get_stock_data(symbol, force_refresh=True)
+        
+        if not stock_data:
+            return jsonify({"error": "Stock data unavailable"}), 404
+        
+        # Return only the live data needed for the UI
+        return jsonify({
+            "symbol": symbol,
+            "current_price": stock_data["current_price"],
+            "change": stock_data["change"],
+            "change_percent": stock_data["change_percent"],
+            "day_high": stock_data["day_high"],
+            "day_low": stock_data["day_low"],
+            "volume": stock_data["volume"],
+            "avg_volume": stock_data["avg_volume"],
+            "rsi": stock_data["rsi"],
+            "volatility": stock_data["volatility"],
+            "week_52_high": stock_data["week_52_high"],
+            "week_52_low": stock_data["week_52_low"],
+            "market_cap": stock_data["market_cap"],
+            "pe_ratio": stock_data["pe_ratio"],
+            "timestamp": stock_data["timestamp"]
+        })
+        
+    except Exception as e:
+        print(f"Live quote error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ---------------------------------
+# NEW: BATCH QUOTE ENDPOINT FOR MULTIPLE SYMBOLS
+# ---------------------------------
+
+@app.route("/api/batch-quote", methods=["POST"])
+def batch_quote():
+    """Get real-time data for multiple symbols at once"""
+    try:
+        data = request.get_json()
+        symbols = data.get("symbols", [])
+        
+        if not symbols or len(symbols) > 20:
+            return jsonify({"error": "Please provide 1-20 symbols"}), 400
+        
+        results = {}
+        for symbol in symbols:
+            symbol = symbol.upper()
+            if validate_stock_symbol(symbol):
+                stock_data = get_stock_data(symbol, force_refresh=False)
+                if stock_data:
+                    results[symbol] = {
+                        "current_price": stock_data["current_price"],
+                        "change_percent": stock_data["change_percent"],
+                        "volume": stock_data["volume"]
+                    }
+        
+        return jsonify({
+            "quotes": results,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ---------------------------------
 # GEMINI ENHANCED PRICE PREDICTION (UPDATED)
@@ -210,6 +321,8 @@ def generate_gemini_predictions(symbol, stock_data):
     - Resistance Level: ${stock_data['resistance']:.2f}
     - Value at Risk (95%): {stock_data['var_95']:.2f}%
     - Sharpe Ratio: {stock_data['sharpe_ratio']:.3f}
+    - 52-Week High: ${stock_data['week_52_high']:.2f}
+    - 52-Week Low: ${stock_data['week_52_low']:.2f}
 
     Recent price history: {[round(p, 2) for p in stock_data['recent_prices']]}
 
@@ -229,6 +342,9 @@ def generate_gemini_predictions(symbol, stock_data):
     10. RISK FACTORS (list 2-3 key risks)
     11. MARKET SENTIMENT (Bullish/Bearish/Neutral)
     12. RECOMMENDATION (Strong Buy/Buy/Hold/Sell/Strong Sell)
+
+    IMPORTANT: All predictions MUST be within ±10% of the current price (${stock_data['current_price']:.2f}).
+    Example: If current price is $100, predictions should be between $90 and $110.
 
     Return as JSON with this exact structure:
     {{
@@ -262,6 +378,17 @@ def generate_gemini_predictions(symbol, stock_data):
             json_match = re.search(r'\{.*\}', text, re.DOTALL)
             if json_match:
                 predictions = json.loads(json_match.group())
+                
+                # Validate that predictions are within reasonable range
+                current = stock_data['current_price']
+                for key in ['open', 'high', 'low', 'close']:
+                    if key in predictions:
+                        value = predictions[key]['value']
+                        # If prediction is too far from current price, adjust it
+                        if abs(value - current) > current * 0.15:  # 15% threshold
+                            print(f"Warning: {key} prediction {value} too far from current {current}, adjusting")
+                            predictions[key]['value'] = round(current * (1 + (value - current) / current * 0.5), 2)
+                
                 return predictions
             else:
                 # Fallback to structured response
@@ -274,55 +401,60 @@ def generate_gemini_predictions(symbol, stock_data):
         return generate_fallback_predictions(stock_data)
 
 def generate_fallback_predictions(stock_data):
-    """Fallback prediction logic if Gemini fails"""
+    """Fallback prediction logic if Gemini fails - NOW USING CURRENT PRICE"""
     current = stock_data['current_price']
     volatility = stock_data['volatility'] / 100
     
-    # More sophisticated fallback predictions
+    print(f"Generating fallback predictions based on current price: ${current:.2f}")
+    
+    # More sophisticated fallback predictions BASED ON CURRENT PRICE
     trend_factor = 1 if stock_data['momentum'] > 0 else -1 if stock_data['momentum'] < 0 else 0
     rsi_factor = (stock_data['rsi'] - 50) / 50  # -1 to 1
     
     combined_factor = (trend_factor * 0.6 + rsi_factor * 0.4) * volatility
     
-    # Predict close with confidence bands
-    expected_change = combined_factor * current * 0.02
-    close_value = current + expected_change
+    # Predict close with confidence bands -保持在当前价格的合理范围内
+    expected_change_pct = combined_factor * 2  # Max ±2% change
+    close_value = current * (1 + expected_change_pct / 100)
+    
+    # Ensure predictions are within reasonable range (±5%)
+    close_value = max(current * 0.95, min(current * 1.05, close_value))
     
     # Confidence based on volatility
-    confidence = max(50, min(90, int(100 - volatility * 2)))
+    confidence = max(65, min(95, int(95 - volatility * 1.5)))
     
     # Calculate bounds based on volatility
-    bound_width = current * volatility * 0.5
+    bound_pct = volatility * 0.5
     
     return {
         "open": {
-            "value": round(current * (1 + random.uniform(-0.005, 0.005)), 2),
-            "lower_bound": round(current * 0.98, 2),
-            "upper_bound": round(current * 1.02, 2),
+            "value": round(current * (1 + random.uniform(-0.01, 0.01)), 2),
+            "lower_bound": round(current * (1 - bound_pct), 2),
+            "upper_bound": round(current * (1 + bound_pct), 2),
             "confidence": confidence
         },
         "high": {
-            "value": round(max(current, close_value) * 1.01, 2),
+            "value": round(max(current, close_value) * (1 + random.uniform(0.005, 0.015)), 2),
             "lower_bound": round(max(current, close_value) * 0.99, 2),
-            "upper_bound": round(max(current, close_value) * 1.03, 2),
+            "upper_bound": round(max(current, close_value) * (1 + bound_pct * 1.5), 2),
             "confidence": confidence - 5
         },
         "low": {
-            "value": round(min(current, close_value) * 0.99, 2),
-            "lower_bound": round(min(current, close_value) * 0.97, 2),
+            "value": round(min(current, close_value) * (1 - random.uniform(0.005, 0.015)), 2),
+            "lower_bound": round(min(current, close_value) * (1 - bound_pct * 1.5), 2),
             "upper_bound": round(min(current, close_value) * 1.01, 2),
             "confidence": confidence - 5
         },
         "close": {
             "value": round(close_value, 2),
-            "lower_bound": round(close_value * (1 - volatility * 0.5), 2),
-            "upper_bound": round(close_value * (1 + volatility * 0.5), 2),
+            "lower_bound": round(close_value * (1 - bound_pct), 2),
+            "upper_bound": round(close_value * (1 + bound_pct), 2),
             "confidence": confidence
         },
-        "trend": "BULLISH" if combined_factor > 0.1 else "BEARISH" if combined_factor < -0.1 else "NEUTRAL",
-        "trend_strength": min(100, int(abs(combined_factor) * 500)),
-        "support": stock_data['support'],
-        "resistance": stock_data['resistance'],
+        "trend": "BULLISH" if combined_factor > 0.05 else "BEARISH" if combined_factor < -0.05 else "NEUTRAL",
+        "trend_strength": min(90, int(abs(combined_factor) * 800)),
+        "support": round(current * 0.96, 2),
+        "resistance": round(current * 1.04, 2),
         "risk_factors": [
             f"Volatility at {stock_data['volatility']:.1f}%",
             f"RSI at {stock_data['rsi']:.1f} indicating {'overbought' if stock_data['rsi'] > 70 else 'oversold' if stock_data['rsi'] < 30 else 'neutral'} conditions",
@@ -331,7 +463,7 @@ def generate_fallback_predictions(stock_data):
         "sentiment": "NEUTRAL",
         "recommendation": "HOLD",
         "overall_confidence": confidence,
-        "analysis_summary": f"Technical analysis suggests {('bullish' if combined_factor > 0 else 'bearish' if combined_factor < 0 else 'neutral')} momentum with {confidence}% confidence."
+        "analysis_summary": f"Technical analysis suggests {('bullish' if combined_factor > 0 else 'bearish' if combined_factor < 0 else 'neutral')} momentum with {confidence}% confidence. Current price: ${current:.2f}"
     }
 
 # ---------------------------------
@@ -365,7 +497,7 @@ def generate_risk_analysis(stock_data, predictions):
     if stock_data['rsi'] > 70:
         risks.append({
             "level": "MEDIUM",
-            "type": "OVERSOLD/OVERBOUGHT",
+            "type": "RSI SIGNAL",
             "message": f"RSI at {stock_data['rsi']:.1f} - Overbought conditions",
             "impact": "Potential pullback or consolidation",
             "mitigation": "Wait for RSI to cool down before buying"
@@ -373,7 +505,7 @@ def generate_risk_analysis(stock_data, predictions):
     elif stock_data['rsi'] < 30:
         risks.append({
             "level": "MEDIUM",
-            "type": "OVERSOLD/OVERBOUGHT",
+            "type": "RSI SIGNAL",
             "message": f"RSI at {stock_data['rsi']:.1f} - Oversold conditions",
             "impact": "Potential bounce or reversal",
             "mitigation": "Look for confirmation before selling"
@@ -404,15 +536,15 @@ def generate_risk_analysis(stock_data, predictions):
         "level": "INFO",
         "type": "VALUE AT RISK",
         "message": f"95% VaR: {stock_data['var_95']:.2f}% | 99% VaR: {stock_data['var_99']:.2f}%",
-        "impact": f"Maximum expected loss: ${abs(stock_data['current_price'] * stock_data['var_95']/100):.2f} (95% confidence)",
+        "impact": f"Max expected loss (95% confidence): ${abs(stock_data['current_price'] * stock_data['var_95']/100):.2f}",
         "mitigation": "Adjust position size accordingly"
     })
     
     # Calculate overall risk score (0-100)
     risk_score = min(100, int(
-        stock_data['volatility'] * 1.5 +
-        (max(0, stock_data['rsi'] - 70) * 2 if stock_data['rsi'] > 70 else max(0, 30 - stock_data['rsi']) * 2) +
-        (20 if stock_data['volume_trend'] == "LOW" else 0)
+        stock_data['volatility'] * 1.2 +
+        (max(0, stock_data['rsi'] - 70) * 1.5 if stock_data['rsi'] > 70 else max(0, 30 - stock_data['rsi']) * 1.5) +
+        (15 if stock_data['volume_trend'] == "LOW" else 0)
     ))
     
     risk_level = "CRITICAL" if risk_score > 80 else "HIGH" if risk_score > 60 else "MEDIUM" if risk_score > 40 else "LOW"
@@ -464,7 +596,7 @@ def generate_confidence_bands(predictions, stock_data):
     return bands
 
 # ============================================
-# NEW: AGENTIC STOCK ANALYSIS FUNCTION
+# AGENTIC STOCK ANALYSIS FUNCTION
 # ============================================
 
 def agentic_stock_analysis(symbol, user_goal):
@@ -523,7 +655,7 @@ def agentic_stock_analysis(symbol, user_goal):
         
         # Step 2: Execute the core tools regardless of plan
         # Always fetch stock data first
-        stock_data = get_stock_data(symbol)
+        stock_data = get_stock_data(symbol, force_refresh=True)
         
         if not stock_data:
             return {
@@ -611,46 +743,6 @@ def agentic_stock_analysis(symbol, user_goal):
         # Step 5: Send email if goal mentions notification/email
         if "email" in user_goal.lower() or "mail" in user_goal.lower() or "notif" in user_goal.lower():
             try:
-                email_body = f"""
-                AGENTIC AI ANALYSIS REPORT
-                ==========================
-                
-                Stock: {symbol}
-                User Goal: {user_goal}
-                Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-                
-                EXECUTED PLAN:
-                {plan}
-                
-                MARKET DATA:
-                - Current Price: ${stock_data['current_price']:.2f}
-                - Change: {stock_data['change_percent']:.2f}%
-                - Volatility: {stock_data['volatility']:.2f}%
-                - RSI: {stock_data['rsi']:.1f}
-                
-                PRICE PREDICTIONS:
-                - Open: ${predictions['open']['value']:.2f} (±${predictions['open']['upper_bound']-predictions['open']['value']:.2f})
-                - High: ${predictions['high']['value']:.2f}
-                - Low: ${predictions['low']['value']:.2f}
-                - Close: ${predictions['close']['value']:.2f}
-                - Confidence: {predictions['overall_confidence']}%
-                
-                TREND: {predictions['trend']} (Strength: {predictions['trend_strength']}%)
-                RECOMMENDATION: {predictions['recommendation']}
-                
-                RISK ANALYSIS:
-                - Risk Score: {risk['risk_score']} ({risk['risk_level']})
-                - VaR 95%: {risk['var_95']:.2f}%
-                - VaR 99%: {risk['var_99']:.2f}%
-                - Sharpe Ratio: {risk['sharpe_ratio']:.2f}
-                
-                COMPREHENSIVE ANALYSIS:
-                {comprehensive_analysis}
-                
-                ==========================
-                Generated by AlphaAnalytics Agentic AI
-                """
-                
                 send_prediction_email(
                     EMAIL_SENDER,
                     symbol,
@@ -675,7 +767,7 @@ def agentic_stock_analysis(symbol, user_goal):
         }
 
 # ============================================
-# NEW: AGENTIC ANALYSIS API ENDPOINT
+# AGENTIC ANALYSIS API ENDPOINT
 # ============================================
 
 @app.route("/api/agentic-analyze", methods=["POST"])
@@ -708,7 +800,7 @@ def agentic_analyze():
         return jsonify({"error": str(e)}), 500
 
 # ============================================
-# NEW: GET AVAILABLE TOOLS
+# GET AVAILABLE TOOLS
 # ============================================
 
 @app.route("/api/agentic-tools", methods=["GET"])
@@ -755,7 +847,7 @@ def predict():
     if not validate_stock_symbol(symbol):
         return jsonify({"error": "Invalid symbol"}), 400
 
-    stock_data = get_stock_data(symbol)
+    stock_data = get_stock_data(symbol, force_refresh=True)
 
     if not stock_data:
         return jsonify({"error": "Stock data unavailable"}), 400
@@ -794,12 +886,17 @@ def predict():
         "symbol": symbol,
         "prediction_date": get_next_trading_day(),
         "current_price": stock_data["current_price"],
+        "change": stock_data["change"],
         "change_percent": stock_data["change_percent"],
         "volatility": stock_data["volatility"],
         "rsi": stock_data["rsi"],
         "volume_trend": stock_data["volume_trend"],
         "support": stock_data["support"],
         "resistance": stock_data["resistance"],
+        "day_high": stock_data["day_high"],
+        "day_low": stock_data["day_low"],
+        "week_52_high": stock_data["week_52_high"],
+        "week_52_low": stock_data["week_52_low"],
         "prediction": predictions,
         "confidence_bands": confidence_bands,
         "risk_analysis": risk_analysis,
@@ -883,9 +980,10 @@ def market_summary():
 def health():
     return jsonify({
         "status": "healthy",
-        "version": "Gemini Enhanced AI v2.0 with Agentic Capabilities",
+        "version": "Gemini Enhanced AI v2.0 with Live Data",
         "ai_model": GEMINI_MODEL,
         "features": [
+            "Live Real-time Data",
             "Agentic AI Planning",
             "Goal-based Analysis",
             "Confidence Bands",
@@ -921,6 +1019,7 @@ if __name__ == "__main__":
     print("AlphaAnalytics Gemini Enhanced AI Server")
     print("="*60)
     print("Features:")
+    print("  • LIVE REAL-TIME DATA from yfinance")
     print("  • Gemini-Powered Predictions")
     print("  • Confidence Bands (50%/75%/90%)")
     print("  • Comprehensive Risk Analysis")
@@ -931,6 +1030,8 @@ if __name__ == "__main__":
     print("  • Email Notifications")
     print("="*60)
     print("\nAvailable Endpoints:")
+    print("  GET  /api/live-quote/<symbol> - Get REAL-TIME stock data")
+    print("  POST /api/batch-quote - Get multiple stock quotes")
     print("  POST /api/predict - Standard price prediction")
     print("  POST /api/agentic-analyze - Agentic goal-based analysis")
     print("  GET  /api/agentic-tools - List available agent tools")
