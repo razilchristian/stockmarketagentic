@@ -342,6 +342,64 @@ if (localStorage.getItem('balance')) {
   transactions = JSON.parse(localStorage.getItem('transactions')) || [];
 }
 
+// Theme Manager
+class ThemeManager {
+  static toggle() {
+    document.body.classList.toggle('light-theme');
+    localStorage.setItem('theme', document.body.classList.contains('light-theme') ? 'light' : 'dark');
+    this.showNotification('Theme changed', 'success');
+  }
+
+  static load() {
+    if (localStorage.getItem('theme') === 'light') {
+      document.body.classList.add('light-theme');
+    }
+  }
+
+  static showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+      <div class="notification-content">
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                         type === 'error' ? 'fa-exclamation-circle' : 
+                         'fa-info-circle'} notification-icon"></i>
+        <span class="notification-message">${message}</span>
+        <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.classList.add('show'), 10);
+    setTimeout(() => notification.remove(), 4000);
+  }
+}
+
+// Mobile Menu
+class MobileMenu {
+  constructor() {
+    this.menuToggle = document.querySelector('.menu-toggle');
+    this.navItems = document.querySelector('.nav-items');
+    this.init();
+  }
+
+  init() {
+    this.menuToggle?.addEventListener('click', () => {
+      this.navItems.classList.toggle('show');
+      this.menuToggle.classList.toggle('active');
+    });
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.navbar') && this.navItems.classList.contains('show')) {
+        this.navItems.classList.remove('show');
+        this.menuToggle.classList.remove('active');
+      }
+    });
+  }
+}
+
 // Update Display
 function updateDisplay() {
   document.getElementById('balanceAmount').innerHTML = '₹' + balance.toLocaleString();
@@ -382,15 +440,15 @@ document.getElementById('depositForm').addEventListener('submit', function(e) {
   const details = document.getElementById('details').value;
 
   if (amount < 100) {
-    showNotification('Minimum deposit is ₹100', 'error');
+    ThemeManager.showNotification('Minimum deposit is ₹100', 'error');
     return;
   }
   if (!details) {
-    showNotification('Please enter payment details', 'error');
+    ThemeManager.showNotification('Please enter payment details', 'error');
     return;
   }
 
-  showNotification('Processing your deposit...', 'info');
+  ThemeManager.showNotification('Processing your deposit...', 'info');
 
   setTimeout(() => {
     const transaction = {
@@ -410,7 +468,7 @@ document.getElementById('depositForm').addEventListener('submit', function(e) {
     localStorage.setItem('transactions', JSON.stringify(transactions));
 
     updateDisplay();
-    showNotification(`₹${amount.toLocaleString()} deposited successfully!`, 'success');
+    ThemeManager.showNotification(`₹${amount.toLocaleString()} deposited successfully!`, 'success');
     
     document.getElementById('depositForm').reset();
     document.getElementById('amount').value = 5000;
@@ -420,12 +478,12 @@ document.getElementById('depositForm').addEventListener('submit', function(e) {
 // Quick Deposit
 function quickDeposit(amount) {
   document.getElementById('amount').value = amount;
-  showNotification(`Quick deposit of ₹${amount.toLocaleString()} ready!`, 'info');
+  ThemeManager.showNotification(`Quick deposit of ₹${amount.toLocaleString()} ready!`, 'info');
 }
 
 // Export History
 function exportHistory() {
-  if (transactions.length === 0) return showNotification('No transactions to export', 'error');
+  if (transactions.length === 0) return ThemeManager.showNotification('No transactions to export', 'error');
   
   let csv = "Amount,Method,Date\n";
   csv += transactions.map(t => `${t.amount},${t.method},${t.date}`).join('\n');
@@ -438,50 +496,26 @@ function exportHistory() {
   a.click();
   URL.revokeObjectURL(url);
   
-  showNotification('Transactions exported', 'success');
+  ThemeManager.showNotification('Transactions exported', 'success');
 }
 
 // Theme Toggle
 function toggleTheme() {
-  document.body.classList.toggle('light-theme');
-  localStorage.setItem('theme', document.body.classList.contains('light-theme') ? 'light' : 'dark');
-  showNotification('Theme changed', 'success');
-}
-
-// Notification System
-function showNotification(message, type = 'info') {
-  const notification = document.createElement('div');
-  notification.className = `notification ${type}`;
-  notification.innerHTML = `
-    <div class="notification-content">
-      <i class="fas ${type === 'success' ? 'fa-check-circle' : 
-                       type === 'error' ? 'fa-exclamation-circle' : 
-                       'fa-info-circle'} notification-icon"></i>
-      <span class="notification-message">${message}</span>
-      <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-  `;
-  document.body.appendChild(notification);
-  setTimeout(() => notification.classList.add('show'), 10);
-  setTimeout(() => notification.remove(), 4000);
+  ThemeManager.toggle();
 }
 
 // Load theme
-if (localStorage.getItem('theme') === 'light') {
-  document.body.classList.add('light-theme');
-}
+ThemeManager.load();
 
 // Initialize
 updateDisplay();
+new MobileMenu();
 
 // Make functions global
 window.selectMethod = selectMethod;
 window.quickDeposit = quickDeposit;
 window.exportHistory = exportHistory;
 window.toggleTheme = toggleTheme;
-window.showNotification = showNotification;
 </script>
 </body>
 </html>
