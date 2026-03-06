@@ -12,4 +12,4 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # Initialize Gemini client
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "models/gemini-2.0-flash"
