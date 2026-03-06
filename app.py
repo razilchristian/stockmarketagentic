@@ -23,6 +23,8 @@ from google.genai import types
 # ---------------------------------
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+EMAIL_SENDER = "razilchristian@gmail.com"
+EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 
 # Initialize the new client
 client = genai.Client(api_key=GEMINI_API_KEY)
