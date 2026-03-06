@@ -1,16 +1,16 @@
-# AlphaAnalytics Agentic AI Backend - Fixed Version
+# AlphaAnalytics Agentic AI Backend - Fixed Version with Agentic Analysis
 
 import os
 import yfinance as yf
 import numpy as np
 import pandas as pd
-import random  # <-- FIXED: Added missing import
+import random
 import json
 import re
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
-from email_service  import send_prediction_email
+from email_service import send_prediction_email
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -30,7 +30,7 @@ EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # Use the latest available model
-GEMINI_MODEL = "gemini-1.5-flash"  # or "gemini-1.5-pro" if you have access
+GEMINI_MODEL = "gemini-2.0-flash"  # or "gemini-1.5-pro" if you have access
 
 
 # ---------------------------------
@@ -463,6 +463,286 @@ def generate_confidence_bands(predictions, stock_data):
     
     return bands
 
+# ============================================
+# NEW: AGENTIC STOCK ANALYSIS FUNCTION
+# ============================================
+
+def agentic_stock_analysis(symbol, user_goal):
+    """
+    AI Agent that plans and executes steps to achieve user's goal
+    """
+    
+    planning_prompt = f"""
+    You are a senior financial AI agent with access to market analysis tools.
+
+    USER GOAL: {user_goal}
+    STOCK SYMBOL: {symbol}
+
+    AVAILABLE TOOLS:
+    1. get_stock_data - Fetches current stock price, technical indicators, volatility, volume
+    2. predict_price - Generates AI-powered price predictions with confidence bands
+    3. risk_analysis - Analyzes risks including VaR, volatility, RSI, trend reversal
+    4. send_email - Sends analysis report via email
+
+    Based on the user's goal, create a step-by-step plan to achieve it.
+    Consider:
+    - What data needs to be gathered first?
+    - What analysis is required?
+    - What tools should be used and in what order?
+    - What final output should be provided?
+
+    Return the plan as a numbered list of steps, with each step specifying:
+    - The tool to use
+    - What data to extract
+    - Why this step is necessary
+
+    Example format:
+    1. Use get_stock_data to fetch current market data for {symbol} - needed for baseline analysis
+    2. Use predict_price to generate tomorrow's price predictions - core requirement
+    3. Use risk_analysis to assess potential downsides - important for risk management
+    4. Use send_email to deliver comprehensive report - final delivery
+    """
+    
+    try:
+        # Step 1: Generate the plan using Gemini
+        planning_response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=planning_prompt
+        )
+        
+        plan = planning_response.text if hasattr(planning_response, "text") else "Unable to generate plan"
+        print("\n" + "="*60)
+        print("AGENTIC AI PLANNING")
+        print("="*60)
+        print("User Goal:", user_goal)
+        print("Symbol:", symbol)
+        print("-"*40)
+        print("Generated Plan:")
+        print(plan)
+        print("="*60 + "\n")
+        
+        # Step 2: Execute the core tools regardless of plan
+        # Always fetch stock data first
+        stock_data = get_stock_data(symbol)
+        
+        if not stock_data:
+            return {
+                "error": f"Unable to fetch data for {symbol}",
+                "plan": plan
+            }
+        
+        # Generate predictions
+        predictions = generate_gemini_predictions(symbol, stock_data)
+        
+        # Generate risk analysis
+        risk = generate_risk_analysis(stock_data, predictions)
+        
+        # Step 3: Generate comprehensive analysis summary
+        analysis_prompt = f"""
+        Based on the analysis for {symbol}:
+
+        Current Price: ${stock_data['current_price']:.2f}
+        Change: {stock_data['change_percent']:.2f}%
+        Volatility: {stock_data['volatility']:.2f}%
+        RSI: {stock_data['rsi']:.1f}
+        Risk Level: {risk['risk_level']}
+        
+        Price Predictions:
+        - Open: ${predictions['open']['value']:.2f} (Confidence: {predictions['open']['confidence']}%)
+        - High: ${predictions['high']['value']:.2f} (Confidence: {predictions['high']['confidence']}%)
+        - Low: ${predictions['low']['value']:.2f} (Confidence: {predictions['low']['confidence']}%)
+        - Close: ${predictions['close']['value']:.2f} (Confidence: {predictions['close']['confidence']}%)
+        
+        Trend: {predictions['trend']} (Strength: {predictions['trend_strength']}%)
+        Recommendation: {predictions['recommendation']}
+        
+        User's Goal: {user_goal}
+        
+        Provide a comprehensive analysis summary that:
+        1. Addresses the user's specific goal
+        2. Explains the key findings
+        3. Gives actionable recommendations
+        4. Highlights important risks
+        """
+        
+        analysis_response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=analysis_prompt
+        )
+        
+        comprehensive_analysis = analysis_response.text if hasattr(analysis_response, "text") else predictions.get('analysis_summary', 'Analysis complete.')
+        
+        # Step 4: Prepare final response
+        result = {
+            "symbol": symbol,
+            "user_goal": user_goal,
+            "plan_executed": plan,
+            "timestamp": datetime.now().isoformat(),
+            "stock_data": {
+                "current_price": stock_data['current_price'],
+                "change_percent": stock_data['change_percent'],
+                "volatility": stock_data['volatility'],
+                "rsi": stock_data['rsi'],
+                "volume_trend": stock_data['volume_trend'],
+                "support": stock_data['support'],
+                "resistance": stock_data['resistance']
+            },
+            "predictions": {
+                "open": predictions['open'],
+                "high": predictions['high'],
+                "low": predictions['low'],
+                "close": predictions['close'],
+                "trend": predictions['trend'],
+                "trend_strength": predictions['trend_strength'],
+                "recommendation": predictions['recommendation'],
+                "overall_confidence": predictions['overall_confidence']
+            },
+            "risk_analysis": {
+                "risk_score": risk['risk_score'],
+                "risk_level": risk['risk_level'],
+                "var_95": risk['var_95'],
+                "var_99": risk['var_99'],
+                "sharpe_ratio": risk['sharpe_ratio'],
+                "risk_factors": risk['risks']
+            },
+            "comprehensive_analysis": comprehensive_analysis
+        }
+        
+        # Step 5: Send email if goal mentions notification/email
+        if "email" in user_goal.lower() or "mail" in user_goal.lower() or "notif" in user_goal.lower():
+            try:
+                email_body = f"""
+                AGENTIC AI ANALYSIS REPORT
+                ==========================
+                
+                Stock: {symbol}
+                User Goal: {user_goal}
+                Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                
+                EXECUTED PLAN:
+                {plan}
+                
+                MARKET DATA:
+                - Current Price: ${stock_data['current_price']:.2f}
+                - Change: {stock_data['change_percent']:.2f}%
+                - Volatility: {stock_data['volatility']:.2f}%
+                - RSI: {stock_data['rsi']:.1f}
+                
+                PRICE PREDICTIONS:
+                - Open: ${predictions['open']['value']:.2f} (±${predictions['open']['upper_bound']-predictions['open']['value']:.2f})
+                - High: ${predictions['high']['value']:.2f}
+                - Low: ${predictions['low']['value']:.2f}
+                - Close: ${predictions['close']['value']:.2f}
+                - Confidence: {predictions['overall_confidence']}%
+                
+                TREND: {predictions['trend']} (Strength: {predictions['trend_strength']}%)
+                RECOMMENDATION: {predictions['recommendation']}
+                
+                RISK ANALYSIS:
+                - Risk Score: {risk['risk_score']} ({risk['risk_level']})
+                - VaR 95%: {risk['var_95']:.2f}%
+                - VaR 99%: {risk['var_99']:.2f}%
+                - Sharpe Ratio: {risk['sharpe_ratio']:.2f}
+                
+                COMPREHENSIVE ANALYSIS:
+                {comprehensive_analysis}
+                
+                ==========================
+                Generated by AlphaAnalytics Agentic AI
+                """
+                
+                send_prediction_email(
+                    EMAIL_SENDER,
+                    symbol,
+                    predictions,
+                    comprehensive_analysis
+                )
+                result["email_sent"] = True
+                print(f"✓ Email notification sent for {symbol}")
+            except Exception as e:
+                print(f"✗ Email error: {e}")
+                result["email_sent"] = False
+                result["email_error"] = str(e)
+        
+        return result
+        
+    except Exception as e:
+        print("Agentic analysis error:", e)
+        return {
+            "error": str(e),
+            "symbol": symbol,
+            "user_goal": user_goal
+        }
+
+# ============================================
+# NEW: AGENTIC ANALYSIS API ENDPOINT
+# ============================================
+
+@app.route("/api/agentic-analyze", methods=["POST"])
+def agentic_analyze():
+    """
+    Endpoint for agentic stock analysis
+    Expects JSON with:
+    {
+        "symbol": "AAPL",
+        "goal": "I want to know if I should buy this stock and get email notification"
+    }
+    """
+    try:
+        data = request.get_json()
+        symbol = data.get("symbol", "AAPL").upper()
+        user_goal = data.get("goal", "Analyze this stock and provide recommendations")
+        
+        if not validate_stock_symbol(symbol):
+            return jsonify({"error": "Invalid stock symbol"}), 400
+        
+        if not user_goal:
+            return jsonify({"error": "Please provide your investment goal"}), 400
+        
+        # Perform agentic analysis
+        result = agentic_stock_analysis(symbol, user_goal)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ============================================
+# NEW: GET AVAILABLE TOOLS
+# ============================================
+
+@app.route("/api/agentic-tools", methods=["GET"])
+def get_agentic_tools():
+    """Return available tools for the agentic system"""
+    tools = [
+        {
+            "name": "get_stock_data",
+            "description": "Fetches current stock price, technical indicators, volatility, and volume",
+            "parameters": ["symbol"]
+        },
+        {
+            "name": "predict_price",
+            "description": "Generates AI-powered price predictions with confidence bands for next trading day",
+            "parameters": ["symbol"]
+        },
+        {
+            "name": "risk_analysis",
+            "description": "Analyzes risks including Value at Risk (VaR), volatility, RSI, and trend reversal",
+            "parameters": ["symbol"]
+        },
+        {
+            "name": "send_email",
+            "description": "Sends comprehensive analysis report via email",
+            "parameters": ["email", "symbol", "analysis"]
+        }
+    ]
+    
+    return jsonify({
+        "tools": tools,
+        "version": "1.0",
+        "description": "Agentic AI Trading Assistant Tools"
+    })
+
 # ---------------------------------
 # ENHANCED PREDICTION API
 # ---------------------------------
@@ -534,15 +814,17 @@ def predict():
             "momentum": stock_data["momentum"]
         }
     }
+    
     try:
         send_prediction_email(
-            "razilchristian@gmail.com",
+            EMAIL_SENDER,
             symbol,
             predictions,
             ai_analysis
         )
     except Exception as e:
         print("Email error:", e)
+        
     return jsonify(response)
 
 # ---------------------------------
@@ -601,14 +883,17 @@ def market_summary():
 def health():
     return jsonify({
         "status": "healthy",
-        "version": "Gemini Enhanced AI v2.0",
+        "version": "Gemini Enhanced AI v2.0 with Agentic Capabilities",
         "ai_model": GEMINI_MODEL,
         "features": [
+            "Agentic AI Planning",
+            "Goal-based Analysis",
             "Confidence Bands",
             "Risk Analysis",
             "Technical Indicators",
             "Sentiment Analysis",
-            "VaR Calculation"
+            "VaR Calculation",
+            "Email Notifications"
         ]
     })
 
@@ -641,5 +926,15 @@ if __name__ == "__main__":
     print("  • Comprehensive Risk Analysis")
     print("  • Technical Indicators")
     print("  • Value at Risk (VaR) Calculation")
+    print("  • AGENTIC AI PLANNING")
+    print("  • Goal-based Stock Analysis")
+    print("  • Email Notifications")
+    print("="*60)
+    print("\nAvailable Endpoints:")
+    print("  POST /api/predict - Standard price prediction")
+    print("  POST /api/agentic-analyze - Agentic goal-based analysis")
+    print("  GET  /api/agentic-tools - List available agent tools")
+    print("  GET  /api/market-summary - Market overview")
+    print("  GET  /api/health - Health check")
     print("="*60)
     app.run(host="0.0.0.0", port=5000, debug=True)
