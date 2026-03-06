@@ -30,7 +30,7 @@ EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 # Use the latest available model
-GEMINI_MODEL = "gemini-2.0-flash"  # or "gemini-1.5-pro" if you have access
+GEMINI_MODEL = "models/gemini-2.0-flash"
 
 
 # ---------------------------------
