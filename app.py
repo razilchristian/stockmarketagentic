@@ -1,4 +1,4 @@
-# AlphaAnalytics Agentic AI Backend - Fixed Version with Live Data Support
+# AlphaAnalytics Agentic AI Backend - Complete Authentication System
 
 import os
 import yfinance as yf
@@ -8,7 +8,7 @@ import random
 import json
 import re
 from datetime import datetime, timedelta
-from flask import Flask, jsonify, request, render_template, redirect, url_for, session
+from flask import Flask, jsonify, request, render_template, redirect, url_for, session, flash
 from flask_cors import CORS
 from email_service import send_prediction_email
 from dotenv import load_dotenv
@@ -39,6 +39,7 @@ GEMINI_MODEL = "models/gemini-2.0-flash"
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.urandom(24)  # For session management
+app.permanent_session_lifetime = timedelta(days=7)  # Session lifetime
 CORS(app)
 
 HISTORY_DIR = "history"
@@ -49,11 +50,13 @@ stock_cache = {}
 CACHE_DURATION = 60  # seconds
 
 # Simple user database (in production, use real database)
+# This will persist during runtime, but will reset when server restarts
 users = {
     "demo@alpha.com": {
         "password": "demo123",
         "first_name": "Demo",
-        "last_name": "User"
+        "last_name": "User",
+        "created_at": datetime.now().isoformat()
     }
 }
 
@@ -234,59 +237,121 @@ def get_stock_data(symbol, force_refresh=False):
 
 @app.route("/")
 def landing():
-    """Redirect to login page"""
+    """Root URL - redirect to login if not authenticated, else to dashboard"""
+    if "user" in session:
+        return redirect(url_for('jeet'))
     return redirect(url_for('login'))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Login page"""
+    """Login page - GET shows form, POST processes login"""
+    # If user is already logged in, redirect to dashboard
+    if "user" in session:
+        return redirect(url_for('jeet'))
+    
     if request.method == "POST":
-        data = request.get_json() if request.is_json else request.form
-        email = data.get("email")
-        password = data.get("password")
-        remember = data.get("remember", False)
+        # Handle both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+            email = data.get("email")
+            password = data.get("password")
+            remember = data.get("remember", False)
+        else:
+            email = request.form.get("email")
+            password = request.form.get("password")
+            remember = request.form.get("remember") == "on"
+        
+        # Validate input
+        if not email or not password:
+            if request.is_json:
+                return jsonify({"success": False, "error": "Email and password are required"}), 400
+            else:
+                flash("Email and password are required", "error")
+                return render_template("login.html")
         
         # Check credentials
         if email in users and users[email]["password"] == password:
+            session.permanent = remember
             session["user"] = {
                 "email": email,
                 "first_name": users[email]["first_name"],
                 "last_name": users[email]["last_name"]
             }
-            # Set session to permanent if remember me is checked
-            if remember:
-                session.permanent = True
-            # Redirect to dashboard (jeet.html)
-            return jsonify({"success": True, "redirect": "/jeet"})
+            
+            if request.is_json:
+                return jsonify({"success": True, "redirect": "/jeet"})
+            else:
+                flash(f"Welcome back, {users[email]['first_name']}!", "success")
+                return redirect(url_for('jeet'))
         else:
-            return jsonify({"success": False, "error": "Invalid email or password"}), 401
+            if request.is_json:
+                return jsonify({"success": False, "error": "Invalid email or password"}), 401
+            else:
+                flash("Invalid email or password", "error")
+                return render_template("login.html")
     
     # GET request - show login page
     return render_template("login.html")
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
-    """Signup page"""
+    """Signup page - GET shows form, POST processes signup"""
+    # If user is already logged in, redirect to dashboard
+    if "user" in session:
+        return redirect(url_for('jeet'))
+    
     if request.method == "POST":
-        data = request.get_json() if request.is_json else request.form
-        first_name = data.get("first_name") or data.get("firstName")
-        last_name = data.get("last_name") or data.get("lastName")
-        email = data.get("email")
-        password = data.get("password")
+        # Handle both JSON and form data
+        if request.is_json:
+            data = request.get_json()
+            first_name = data.get("first_name") or data.get("firstName")
+            last_name = data.get("last_name") or data.get("lastName")
+            email = data.get("email")
+            password = data.get("password")
+        else:
+            first_name = request.form.get("first_name") or request.form.get("firstName")
+            last_name = request.form.get("last_name") or request.form.get("lastName")
+            email = request.form.get("email")
+            password = request.form.get("password")
         
         # Validate input
         if not all([first_name, last_name, email, password]):
-            return jsonify({"success": False, "error": "All fields are required"}), 400
+            if request.is_json:
+                return jsonify({"success": False, "error": "All fields are required"}), 400
+            else:
+                flash("All fields are required", "error")
+                return render_template("signup.html")
+        
+        # Validate email format
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+            if request.is_json:
+                return jsonify({"success": False, "error": "Invalid email format"}), 400
+            else:
+                flash("Invalid email format", "error")
+                return render_template("signup.html")
+        
+        # Validate password strength (minimum 6 characters)
+        if len(password) < 6:
+            if request.is_json:
+                return jsonify({"success": False, "error": "Password must be at least 6 characters"}), 400
+            else:
+                flash("Password must be at least 6 characters", "error")
+                return render_template("signup.html")
         
         # Check if user already exists
         if email in users:
-            return jsonify({"success": False, "error": "Email already registered"}), 400
+            if request.is_json:
+                return jsonify({"success": False, "error": "Email already registered"}), 400
+            else:
+                flash("Email already registered", "error")
+                return render_template("signup.html")
         
         # Create new user
         users[email] = {
             "password": password,
             "first_name": first_name,
-            "last_name": last_name
+            "last_name": last_name,
+            "created_at": datetime.now().isoformat()
         }
         
         # Auto login after signup
@@ -296,16 +361,20 @@ def signup():
             "last_name": last_name
         }
         
-        # Redirect to dashboard (jeet.html)
-        return jsonify({"success": True, "redirect": "/jeet"})
+        if request.is_json:
+            return jsonify({"success": True, "redirect": "/jeet"})
+        else:
+            flash(f"Welcome to AlphaAnalytics, {first_name}!", "success")
+            return redirect(url_for('jeet'))
     
     # GET request - show signup page
     return render_template("signup.html")
 
 @app.route("/logout")
 def logout():
-    """Logout user"""
+    """Logout user and clear session"""
     session.pop("user", None)
+    flash("You have been logged out", "info")
     return redirect(url_for('login'))
 
 # ============================================
@@ -313,9 +382,10 @@ def logout():
 # ============================================
 
 def login_required(f):
-    """Decorator to require login"""
+    """Decorator to require login for protected routes"""
     def decorated_function(*args, **kwargs):
         if "user" not in session:
+            flash("Please login to access this page", "warning")
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     decorated_function.__name__ = f.__name__
@@ -399,9 +469,9 @@ def profile():
     """Profile page"""
     return render_template("profile.html", user=session.get("user"))
 
-# ---------------------------------
-# LIVE QUOTE ENDPOINT FOR REAL-TIME DATA
-# ---------------------------------
+# ============================================
+# API ENDPOINTS (All require authentication)
+# ============================================
 
 @app.route("/api/live-quote/<symbol>", methods=["GET"])
 @login_required
@@ -419,7 +489,6 @@ def live_quote(symbol):
         if not stock_data:
             return jsonify({"error": "Stock data unavailable"}), 404
         
-        # Return only the live data needed for the UI
         return jsonify({
             "symbol": symbol,
             "current_price": stock_data["current_price"],
@@ -441,10 +510,6 @@ def live_quote(symbol):
     except Exception as e:
         print(f"Live quote error: {e}")
         return jsonify({"error": str(e)}), 500
-
-# ---------------------------------
-# BATCH QUOTE ENDPOINT FOR MULTIPLE SYMBOLS
-# ---------------------------------
 
 @app.route("/api/batch-quote", methods=["POST"])
 @login_required
@@ -477,9 +542,213 @@ def batch_quote():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ---------------------------------
-# GEMINI ENHANCED PRICE PREDICTION
-# ---------------------------------
+@app.route("/api/predict", methods=["POST"])
+@login_required
+def predict():
+    """Generate price predictions for a stock"""
+    data = request.get_json()
+    symbol = data.get("symbol", "AAPL").upper()
+
+    if not validate_stock_symbol(symbol):
+        return jsonify({"error": "Invalid symbol"}), 400
+
+    stock_data = get_stock_data(symbol, force_refresh=True)
+
+    if not stock_data:
+        return jsonify({"error": "Stock data unavailable"}), 400
+
+    predictions = generate_gemini_predictions(symbol, stock_data)
+    risk_analysis = generate_risk_analysis(stock_data, predictions)
+    confidence_bands = generate_confidence_bands(predictions, stock_data)
+    
+    analysis_prompt = f"""
+    Based on the following data for {symbol}:
+    - Current Price: ${stock_data['current_price']:.2f}
+    - RSI: {stock_data['rsi']:.1f}
+    - Volatility: {stock_data['volatility']:.1f}%
+    - Momentum: {stock_data['momentum']:.2f}%
+    - Risk Level: {risk_analysis['risk_level']}
+    
+    Provide a brief market analysis and trading recommendation in 2-3 sentences.
+    """
+    
+    try:
+        analysis_response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=analysis_prompt
+        )
+        ai_analysis = analysis_response.text if hasattr(analysis_response, "text") else predictions.get('analysis_summary', 'Analysis complete.')
+    except:
+        ai_analysis = predictions.get('analysis_summary', 'Analysis complete.')
+
+    response = {
+        "symbol": symbol,
+        "prediction_date": get_next_trading_day(),
+        "current_price": stock_data["current_price"],
+        "change": stock_data["change"],
+        "change_percent": stock_data["change_percent"],
+        "volatility": stock_data["volatility"],
+        "rsi": stock_data["rsi"],
+        "volume_trend": stock_data["volume_trend"],
+        "support": stock_data["support"],
+        "resistance": stock_data["resistance"],
+        "day_high": stock_data["day_high"],
+        "day_low": stock_data["day_low"],
+        "week_52_high": stock_data["week_52_high"],
+        "week_52_low": stock_data["week_52_low"],
+        "prediction": predictions,
+        "confidence_bands": confidence_bands,
+        "risk_analysis": risk_analysis,
+        "ai_analysis": ai_analysis,
+        "technical_indicators": {
+            "ma_20": stock_data["ma_20"],
+            "ma_50": stock_data["ma_50"],
+            "bb_upper": stock_data["bb_upper"],
+            "bb_lower": stock_data["bb_lower"],
+            "macd": stock_data["macd"],
+            "signal": stock_data["signal"],
+            "momentum": stock_data["momentum"]
+        }
+    }
+    
+    try:
+        send_prediction_email(
+            EMAIL_SENDER,
+            symbol,
+            predictions,
+            ai_analysis
+        )
+    except Exception as e:
+        print("Email error:", e)
+        
+    return jsonify(response)
+
+@app.route("/api/market-summary")
+@login_required
+def market_summary():
+    """Get market summary for major stocks"""
+    stocks = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA"]
+    data = []
+
+    for s in stocks:
+        d = get_stock_data(s)
+        if d:
+            data.append({
+                "symbol": s,
+                "price": d["current_price"],
+                "change": d["change_percent"],
+                "volatility": d["volatility"],
+                "rsi": d["rsi"],
+                "volume_trend": d["volume_trend"]
+            })
+
+    prompt = f"""
+    Analyze this market data:
+    {json.dumps(data, indent=2)}
+    
+    Provide:
+    1. Overall market sentiment
+    2. Most volatile stock
+    3. Best performing sector
+    4. Risk outlook
+    5. Trading recommendation for the day
+    """
+    
+    try:
+        res = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt
+        )
+        text = res.text if hasattr(res, "text") else "Market showing mixed signals."
+    except:
+        text = "Market showing mixed signals with varying volatility levels."
+
+    return jsonify({
+        "market_summary": text,
+        "market_data": data,
+        "timestamp": datetime.now().isoformat()
+    })
+
+@app.route("/api/agentic-analyze", methods=["POST"])
+@login_required
+def agentic_analyze():
+    """Agentic goal-based stock analysis"""
+    try:
+        data = request.get_json()
+        symbol = data.get("symbol", "AAPL").upper()
+        user_goal = data.get("goal", "Analyze this stock and provide recommendations")
+        
+        if not validate_stock_symbol(symbol):
+            return jsonify({"error": "Invalid stock symbol"}), 400
+        
+        if not user_goal:
+            return jsonify({"error": "Please provide your investment goal"}), 400
+        
+        result = agentic_stock_analysis(symbol, user_goal)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/agentic-tools", methods=["GET"])
+@login_required
+def get_agentic_tools():
+    """Return available tools for the agentic system"""
+    tools = [
+        {
+            "name": "get_stock_data",
+            "description": "Fetches current stock price, technical indicators, volatility, and volume",
+            "parameters": ["symbol"]
+        },
+        {
+            "name": "predict_price",
+            "description": "Generates AI-powered price predictions with confidence bands for next trading day",
+            "parameters": ["symbol"]
+        },
+        {
+            "name": "risk_analysis",
+            "description": "Analyzes risks including Value at Risk (VaR), volatility, RSI, and trend reversal",
+            "parameters": ["symbol"]
+        },
+        {
+            "name": "send_email",
+            "description": "Sends comprehensive analysis report via email",
+            "parameters": ["email", "symbol", "analysis"]
+        }
+    ]
+    
+    return jsonify({
+        "tools": tools,
+        "version": "1.0",
+        "description": "Agentic AI Trading Assistant Tools"
+    })
+
+@app.route("/api/health")
+def health():
+    """Health check endpoint (public)"""
+    return jsonify({
+        "status": "healthy",
+        "version": "Gemini Enhanced AI v2.0 with Live Data",
+        "ai_model": GEMINI_MODEL,
+        "features": [
+            "Live Real-time Data",
+            "Agentic AI Planning",
+            "Goal-based Analysis",
+            "Confidence Bands",
+            "Risk Analysis",
+            "Technical Indicators",
+            "Sentiment Analysis",
+            "VaR Calculation",
+            "Email Notifications",
+            "User Authentication"
+        ],
+        "users_registered": len(users)
+    })
+
+# ============================================
+# GEMINI FUNCTIONS
+# ============================================
 
 def generate_gemini_predictions(symbol, stock_data):
     """Use Gemini to generate intelligent predictions with confidence bands"""
@@ -637,10 +906,6 @@ def generate_fallback_predictions(stock_data):
         "analysis_summary": f"Technical analysis suggests {('bullish' if combined_factor > 0 else 'bearish' if combined_factor < 0 else 'neutral')} momentum with {confidence}% confidence. Current price: ${current:.2f}"
     }
 
-# ---------------------------------
-# ENHANCED RISK ANALYSIS
-# ---------------------------------
-
 def generate_risk_analysis(stock_data, predictions):
     """Generate comprehensive risk analysis"""
     
@@ -723,10 +988,6 @@ def generate_risk_analysis(stock_data, predictions):
         "sharpe_ratio": stock_data['sharpe_ratio']
     }
 
-# ---------------------------------
-# CONFIDENCE BAND GENERATION
-# ---------------------------------
-
 def generate_confidence_bands(predictions, stock_data):
     """Generate confidence bands for visualization"""
     
@@ -755,10 +1016,6 @@ def generate_confidence_bands(predictions, stock_data):
     })
     
     return bands
-
-# ============================================
-# AGENTIC STOCK ANALYSIS FUNCTION
-# ============================================
 
 def agentic_stock_analysis(symbol, user_goal):
     """
@@ -919,235 +1176,8 @@ def agentic_stock_analysis(symbol, user_goal):
         }
 
 # ============================================
-# AGENTIC ANALYSIS API ENDPOINT
-# ============================================
-
-@app.route("/api/agentic-analyze", methods=["POST"])
-@login_required
-def agentic_analyze():
-    """
-    Endpoint for agentic stock analysis
-    Expects JSON with:
-    {
-        "symbol": "AAPL",
-        "goal": "I want to know if I should buy this stock and get email notification"
-    }
-    """
-    try:
-        data = request.get_json()
-        symbol = data.get("symbol", "AAPL").upper()
-        user_goal = data.get("goal", "Analyze this stock and provide recommendations")
-        
-        if not validate_stock_symbol(symbol):
-            return jsonify({"error": "Invalid stock symbol"}), 400
-        
-        if not user_goal:
-            return jsonify({"error": "Please provide your investment goal"}), 400
-        
-        result = agentic_stock_analysis(symbol, user_goal)
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# ============================================
-# GET AVAILABLE TOOLS
-# ============================================
-
-@app.route("/api/agentic-tools", methods=["GET"])
-@login_required
-def get_agentic_tools():
-    """Return available tools for the agentic system"""
-    tools = [
-        {
-            "name": "get_stock_data",
-            "description": "Fetches current stock price, technical indicators, volatility, and volume",
-            "parameters": ["symbol"]
-        },
-        {
-            "name": "predict_price",
-            "description": "Generates AI-powered price predictions with confidence bands for next trading day",
-            "parameters": ["symbol"]
-        },
-        {
-            "name": "risk_analysis",
-            "description": "Analyzes risks including Value at Risk (VaR), volatility, RSI, and trend reversal",
-            "parameters": ["symbol"]
-        },
-        {
-            "name": "send_email",
-            "description": "Sends comprehensive analysis report via email",
-            "parameters": ["email", "symbol", "analysis"]
-        }
-    ]
-    
-    return jsonify({
-        "tools": tools,
-        "version": "1.0",
-        "description": "Agentic AI Trading Assistant Tools"
-    })
-
-# ---------------------------------
-# ENHANCED PREDICTION API
-# ---------------------------------
-
-@app.route("/api/predict", methods=["POST"])
-@login_required
-def predict():
-    data = request.get_json()
-    symbol = data.get("symbol", "AAPL").upper()
-
-    if not validate_stock_symbol(symbol):
-        return jsonify({"error": "Invalid symbol"}), 400
-
-    stock_data = get_stock_data(symbol, force_refresh=True)
-
-    if not stock_data:
-        return jsonify({"error": "Stock data unavailable"}), 400
-
-    predictions = generate_gemini_predictions(symbol, stock_data)
-    risk_analysis = generate_risk_analysis(stock_data, predictions)
-    confidence_bands = generate_confidence_bands(predictions, stock_data)
-    
-    analysis_prompt = f"""
-    Based on the following data for {symbol}:
-    - Current Price: ${stock_data['current_price']:.2f}
-    - RSI: {stock_data['rsi']:.1f}
-    - Volatility: {stock_data['volatility']:.1f}%
-    - Momentum: {stock_data['momentum']:.2f}%
-    - Risk Level: {risk_analysis['risk_level']}
-    
-    Provide a brief market analysis and trading recommendation in 2-3 sentences.
-    """
-    
-    try:
-        analysis_response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=analysis_prompt
-        )
-        ai_analysis = analysis_response.text if hasattr(analysis_response, "text") else predictions.get('analysis_summary', 'Analysis complete.')
-    except:
-        ai_analysis = predictions.get('analysis_summary', 'Analysis complete.')
-
-    response = {
-        "symbol": symbol,
-        "prediction_date": get_next_trading_day(),
-        "current_price": stock_data["current_price"],
-        "change": stock_data["change"],
-        "change_percent": stock_data["change_percent"],
-        "volatility": stock_data["volatility"],
-        "rsi": stock_data["rsi"],
-        "volume_trend": stock_data["volume_trend"],
-        "support": stock_data["support"],
-        "resistance": stock_data["resistance"],
-        "day_high": stock_data["day_high"],
-        "day_low": stock_data["day_low"],
-        "week_52_high": stock_data["week_52_high"],
-        "week_52_low": stock_data["week_52_low"],
-        "prediction": predictions,
-        "confidence_bands": confidence_bands,
-        "risk_analysis": risk_analysis,
-        "ai_analysis": ai_analysis,
-        "technical_indicators": {
-            "ma_20": stock_data["ma_20"],
-            "ma_50": stock_data["ma_50"],
-            "bb_upper": stock_data["bb_upper"],
-            "bb_lower": stock_data["bb_lower"],
-            "macd": stock_data["macd"],
-            "signal": stock_data["signal"],
-            "momentum": stock_data["momentum"]
-        }
-    }
-    
-    try:
-        send_prediction_email(
-            EMAIL_SENDER,
-            symbol,
-            predictions,
-            ai_analysis
-        )
-    except Exception as e:
-        print("Email error:", e)
-        
-    return jsonify(response)
-
-# ---------------------------------
-# MARKET SUMMARY (Enhanced)
-# ---------------------------------
-
-@app.route("/api/market-summary")
-@login_required
-def market_summary():
-    stocks = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA"]
-    data = []
-
-    for s in stocks:
-        d = get_stock_data(s)
-        if d:
-            data.append({
-                "symbol": s,
-                "price": d["current_price"],
-                "change": d["change_percent"],
-                "volatility": d["volatility"],
-                "rsi": d["rsi"],
-                "volume_trend": d["volume_trend"]
-            })
-
-    prompt = f"""
-    Analyze this market data:
-    {json.dumps(data, indent=2)}
-    
-    Provide:
-    1. Overall market sentiment
-    2. Most volatile stock
-    3. Best performing sector
-    4. Risk outlook
-    5. Trading recommendation for the day
-    """
-    
-    try:
-        res = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt
-        )
-        text = res.text if hasattr(res, "text") else "Market showing mixed signals."
-    except:
-        text = "Market showing mixed signals with varying volatility levels."
-
-    return jsonify({
-        "market_summary": text,
-        "market_data": data,
-        "timestamp": datetime.now().isoformat()
-    })
-
-# ---------------------------------
-# HEALTH CHECK
-# ---------------------------------
-
-@app.route("/api/health")
-def health():
-    return jsonify({
-        "status": "healthy",
-        "version": "Gemini Enhanced AI v2.0 with Live Data",
-        "ai_model": GEMINI_MODEL,
-        "features": [
-            "Live Real-time Data",
-            "Agentic AI Planning",
-            "Goal-based Analysis",
-            "Confidence Bands",
-            "Risk Analysis",
-            "Technical Indicators",
-            "Sentiment Analysis",
-            "VaR Calculation",
-            "Email Notifications",
-            "User Authentication"
-        ]
-    })
-
-# ---------------------------------
 # FALLBACK ROUTE FOR UNKNOWN PAGES
-# ---------------------------------
+# ============================================
 
 @app.route("/<path:path>")
 def catch_all(path):
@@ -1156,9 +1186,9 @@ def catch_all(path):
         return redirect(url_for('login'))
     return render_template("404.html"), 404
 
-# ---------------------------------
+# ============================================
 # RUN SERVER
-# ---------------------------------
+# ============================================
 
 if __name__ == "__main__":
     print("="*60)
@@ -1176,34 +1206,34 @@ if __name__ == "__main__":
     print("  • Goal-based Stock Analysis")
     print("  • Email Notifications")
     print("="*60)
-    print("\nAvailable Routes:")
-    print("  GET  /              - Redirects to /login")
-    print("  GET  /login         - Login page")
-    print("  POST /login         - Login API")
-    print("  GET  /signup        - Signup page")
-    print("  POST /signup        - Signup API")
-    print("  GET  /logout        - Logout")
-    print("  GET  /dashboard     - Redirects to /jeet (requires auth)")
-    print("  GET  /jeet          - Main Dashboard (requires auth)")
-    print("  GET  /portfolio     - Portfolio page (requires auth)")
-    print("  GET  /mystock       - My Stock page (requires auth)")
-    print("  GET  /deposit       - Deposit page (requires auth)")
-    print("  GET  /insight       - Insight page (requires auth)")
-    print("  GET  /prediction    - Prediction page (requires auth)")
-    print("  GET  /news          - News page (requires auth)")
-    print("  GET  /videos        - Videos page (requires auth)")
-    print("  GET  /superstars    - Superstars page (requires auth)")
-    print("  GET  /alerts        - Alerts page (requires auth)")
-    print("  GET  /help          - Help page (requires auth)")
-    print("  GET  /profile       - Profile page (requires auth)")
-    print("\nAPI Endpoints (require auth):")
-    print("  GET  /api/live-quote/<symbol> - Get REAL-TIME stock data")
-    print("  POST /api/batch-quote - Get multiple stock quotes")
-    print("  POST /api/predict - Standard price prediction")
-    print("  POST /api/agentic-analyze - Agentic goal-based analysis")
-    print("  GET  /api/agentic-tools - List available agent tools")
-    print("  GET  /api/market-summary - Market overview")
-    print("  GET  /api/health - Health check")
+    print("\nAuthentication Flow:")
+    print("  • /              - Redirects to /login or /jeet based on session")
+    print("  • GET  /login    - Login page")
+    print("  • POST /login    - Process login (JSON or form data)")
+    print("  • GET  /signup   - Signup page")
+    print("  • POST /signup   - Process signup (JSON or form data)")
+    print("  • GET  /logout   - Logout user")
+    print("="*60)
+    print("\nProtected Pages (require login):")
+    print("  • /dashboard -> /jeet - Main Dashboard")
+    print("  • /jeet          - Main Dashboard")
+    print("  • /portfolio     - Portfolio page")
+    print("  • /mystock       - My Stock page")
+    print("  • /deposit       - Deposit page")
+    print("  • /insight       - Insight page")
+    print("  • /prediction    - Prediction page")
+    print("  • /news          - News page")
+    print("  • /videos        - Videos page")
+    print("  • /superstars    - Superstars page")
+    print("  • /alerts        - Alerts page")
+    print("  • /help          - Help page")
+    print("  • /profile       - Profile page")
+    print("="*60)
+    print(f"\nDemo Account:")
+    print(f"  • Email:    demo@alpha.com")
+    print(f"  • Password: demo123")
+    print("="*60)
+    print(f"\nServer starting on http://0.0.0.0:5000")
     print("="*60)
     
     import os
