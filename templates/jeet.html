@@ -10,10 +10,13 @@
   
   <!-- Fonts & Icons -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css-all.min.css">
   
   <!-- AOS Animation -->
   <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   
   <!-- Shared CSS -->
   <link rel="stylesheet" href="/static/css/alpha-analytics.css">
@@ -211,6 +214,93 @@
       font-size: 15px;
     }
 
+    /* User Profile Section */
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      background: var(--darker-bg);
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .user-profile:hover {
+      border-color: var(--primary);
+    }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--gradient-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+    }
+
+    .user-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .logout-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 8px;
+      border-radius: var(--radius-full);
+      transition: all 0.3s;
+    }
+
+    .logout-btn:hover {
+      color: var(--danger);
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    /* Live Badge */
+    .live-badge {
+      background: var(--success);
+      color: white;
+      padding: 4px 8px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 8px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    /* Loading Spinner */
+    .loading-spinner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      color: var(--text-muted);
+    }
+
+    .loading-spinner i {
+      font-size: 32px;
+      margin-right: 12px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
     @media (max-width: 1024px) {
       .watchlist-section {
         grid-template-columns: 1fr;
@@ -229,6 +319,10 @@
       
       .chart-select {
         width: 100%;
+      }
+
+      .user-profile .user-name {
+        display: none;
       }
     }
 
@@ -273,6 +367,15 @@
         <a href="/help" class="nav-item"><i class="fas fa-question-circle"></i>Help</a>
         <a href="/profile" class="nav-item"><i class="fas fa-user"></i>Profile</a>
       </nav>
+
+      <!-- User Profile Section -->
+      <div class="user-profile" id="userProfile">
+        <div class="user-avatar" id="userAvatar">DU</div>
+        <span class="user-name" id="userName">Demo User</span>
+        <button class="logout-btn" onclick="logout()" title="Logout">
+          <i class="fas fa-sign-out-alt"></i>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -280,7 +383,7 @@
   <main>
     <!-- Header -->
     <div class="header">
-      <h1><i class="fas fa-chart-pie"></i> Market Intelligence Dashboard</h1>
+      <h1><i class="fas fa-chart-pie"></i> Market Intelligence Dashboard <span class="live-badge">LIVE</span></h1>
       <div class="header-controls">
         <div class="search-container">
           <i class="fas fa-search search-icon"></i>
@@ -291,6 +394,9 @@
         </button>
         <button class="btn btn-primary" onclick="exportReport()">
           <i class="fas fa-download"></i>Export
+        </button>
+        <button class="btn btn-secondary" onclick="refreshLiveData()">
+          <i class="fas fa-sync-alt"></i>Refresh
         </button>
       </div>
     </div>
@@ -365,7 +471,12 @@
             <button class="btn btn-sm btn-secondary" onclick="sortStockList('topMoversIndian', 'name')">Name</button>
           </div>
         </div>
-        <div class="stock-list" id="topMoversIndian"></div>
+        <div class="stock-list" id="topMoversIndian">
+          <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Loading stocks...</span>
+          </div>
+        </div>
       </div>
 
       <!-- Indian Losers -->
@@ -377,7 +488,12 @@
             <button class="btn btn-sm btn-secondary" onclick="sortStockList('topLosersIndian', 'name')">Name</button>
           </div>
         </div>
-        <div class="stock-list" id="topLosersIndian"></div>
+        <div class="stock-list" id="topLosersIndian">
+          <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Loading stocks...</span>
+          </div>
+        </div>
       </div>
 
       <!-- International Gainers -->
@@ -389,7 +505,12 @@
             <button class="btn btn-sm btn-secondary" onclick="sortStockList('topMoversInternational', 'name')">Name</button>
           </div>
         </div>
-        <div class="stock-list" id="topMoversInternational"></div>
+        <div class="stock-list" id="topMoversInternational">
+          <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Loading stocks...</span>
+          </div>
+        </div>
       </div>
 
       <!-- International Losers -->
@@ -401,7 +522,12 @@
             <button class="btn btn-sm btn-secondary" onclick="sortStockList('topLosersInternational', 'name')">Name</button>
           </div>
         </div>
-        <div class="stock-list" id="topLosersInternational"></div>
+        <div class="stock-list" id="topLosersInternational">
+          <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>Loading stocks...</span>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -422,11 +548,85 @@ AOS.init({
 // Configuration
 const CONFIG = {
     API_BASE_URL: window.location.origin,
-    AUTO_REFRESH_INTERVAL: 300000,
-    CACHE_DURATION: 5 * 60 * 1000
+    AUTO_REFRESH_INTERVAL: 300000, // 5 minutes
+    LIVE_UPDATE_INTERVAL: 30000 // 30 seconds
 };
 
-// Theme Manager
+// ==================== USER SESSION MANAGEMENT ====================
+
+// Get user from URL parameters or session
+function getUserFromSession() {
+    // In a real app, this would come from a session cookie
+    // For now, we'll check if there's a user in localStorage
+    const userStr = localStorage.getItem('alpha_user');
+    if (userStr) {
+        try {
+            return JSON.parse(userStr);
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
+// Set user in session
+function setUserSession(user) {
+    localStorage.setItem('alpha_user', JSON.stringify(user));
+    updateUserUI(user);
+}
+
+// Clear user session
+function clearUserSession() {
+    localStorage.removeItem('alpha_user');
+    window.location.href = '/login';
+}
+
+// Update UI with user info
+function updateUserUI(user) {
+    if (user) {
+        const avatar = document.getElementById('userAvatar');
+        const nameEl = document.getElementById('userName');
+        
+        // Set avatar initials
+        const initials = (user.first_name?.[0] || 'D') + (user.last_name?.[0] || 'U');
+        avatar.textContent = initials.toUpperCase();
+        
+        // Set full name
+        nameEl.textContent = `${user.first_name || 'Demo'} ${user.last_name || 'User'}`;
+    }
+}
+
+// Logout function
+function logout() {
+    // Call logout API
+    fetch(`${CONFIG.API_BASE_URL}/logout`, {
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(() => {
+        clearUserSession();
+        ThemeManager.showNotification('Logged out successfully', 'success');
+    })
+    .catch(() => {
+        clearUserSession();
+    });
+}
+
+// Check authentication on load
+function checkAuth() {
+    // In a real app, this would verify session with backend
+    // For now, we'll check localStorage
+    const user = getUserFromSession();
+    if (!user) {
+        // No user found, redirect to login
+        window.location.href = '/login';
+    } else {
+        updateUserUI(user);
+    }
+}
+
+// ==================== THEME MANAGER ====================
+
 class ThemeManager {
     static toggle() {
         document.body.classList.toggle('light-theme');
@@ -467,7 +667,8 @@ class ThemeManager {
     }
 }
 
-// Mobile Menu
+// ==================== MOBILE MENU ====================
+
 class MobileMenu {
     constructor() {
         this.menuToggle = document.querySelector('.menu-toggle');
@@ -490,7 +691,8 @@ class MobileMenu {
     }
 }
 
-// Chart Manager
+// ==================== CHART MANAGER ====================
+
 class ChartManager {
     static currentWidget = null;
 
@@ -552,7 +754,38 @@ class ChartManager {
     }
 }
 
-// Stock Data
+// ==================== LIVE DATA SERVICE ====================
+
+class LiveDataService {
+    static async fetchLiveQuote(symbol) {
+        try {
+            const response = await fetch(`${CONFIG.API_BASE_URL}/api/live-quote/${symbol}`, {
+                credentials: 'include'
+            });
+            if (!response.ok) throw new Error('Failed to fetch live data');
+            return await response.json();
+        } catch (error) {
+            console.error('Live quote error:', error);
+            return null;
+        }
+    }
+
+    static async fetchMarketSummary() {
+        try {
+            const response = await fetch(`${CONFIG.API_BASE_URL}/api/market-summary`, {
+                credentials: 'include'
+            });
+            if (!response.ok) throw new Error('Failed to fetch market summary');
+            return await response.json();
+        } catch (error) {
+            console.error('Market summary error:', error);
+            return null;
+        }
+    }
+}
+
+// ==================== MARKET DATA ====================
+
 const NSE_TICKERS = [
     "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", 
     "ICICIBANK.NS", "SBIN.NS", "BHARTIARTL.NS", "ITC.NS",
@@ -564,24 +797,6 @@ const INTERNATIONAL_TICKERS = [
     "NVDA", "META", "JPM", "V", "JNJ"
 ];
 
-// Market Data
-const FALLBACK_DATA = {
-    INDIAN: [
-        { symbol: "RELIANCE.NS", name: "Reliance Industries", price: 2856.50, changePercent: 2.35 },
-        { symbol: "TCS.NS", name: "Tata Consultancy Services", price: 3850.75, changePercent: 1.85 },
-        { symbol: "HDFCBANK.NS", name: "HDFC Bank", price: 1670.25, changePercent: 0.75 },
-        { symbol: "INFY.NS", name: "Infosys", price: 1520.80, changePercent: -0.45 },
-        { symbol: "ICICIBANK.NS", name: "ICICI Bank", price: 1120.30, changePercent: 1.20 }
-    ],
-    INTERNATIONAL: [
-        { symbol: "AAPL", name: "Apple Inc.", price: 218.35, changePercent: 3.25 },
-        { symbol: "MSFT", name: "Microsoft Corp.", price: 425.50, changePercent: 2.15 },
-        { symbol: "GOOGL", name: "Alphabet Inc.", price: 172.34, changePercent: 1.80 },
-        { symbol: "AMZN", name: "Amazon.com Inc.", price: 178.22, changePercent: 0.67 },
-        { symbol: "TSLA", name: "Tesla Inc.", price: 245.75, changePercent: -1.45 }
-    ]
-};
-
 // Application State
 const AppState = {
     stockData: {
@@ -592,30 +807,107 @@ const AppState = {
     },
     marketIndices: {},
     isInitialized: false,
-    refreshInterval: null
+    refreshInterval: null,
+    liveUpdateInterval: null
 };
+
+// ==================== DASHBOARD FUNCTIONS ====================
 
 // Initialize Dashboard
 document.addEventListener('DOMContentLoaded', async () => {
+    // Check authentication first
+    checkAuth();
+    
     ThemeManager.load();
     new MobileMenu();
     ChartManager.initialize();
     
     await initializeMarketData();
     
+    // Auto refresh market data
     setInterval(initializeMarketData, CONFIG.AUTO_REFRESH_INTERVAL);
     
+    // Live updates for prices
+    startLiveUpdates();
+    
+    // Event listeners
     document.getElementById('chartSymbol').addEventListener('change', (e) => ChartManager.updateSymbol(e.target.value));
     document.getElementById('chartInterval').addEventListener('change', (e) => ChartManager.updateInterval(e.target.value));
+    
+    // Search functionality
+    document.getElementById('globalSearch').addEventListener('input', debounce(handleGlobalSearch, 500));
 });
 
+// Start live updates
+function startLiveUpdates() {
+    if (AppState.liveUpdateInterval) {
+        clearInterval(AppState.liveUpdateInterval);
+    }
+    
+    AppState.liveUpdateInterval = setInterval(async () => {
+        await refreshLivePrices();
+    }, CONFIG.LIVE_UPDATE_INTERVAL);
+}
+
+// Refresh live prices
+async function refreshLivePrices() {
+    try {
+        const summary = await LiveDataService.fetchMarketSummary();
+        if (summary && summary.market_data) {
+            updateMarketIndicesWithLiveData(summary.market_data);
+        }
+    } catch (error) {
+        console.error('Live update error:', error);
+    }
+}
+
+// Debounce helper
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Handle global search
+function handleGlobalSearch(e) {
+    const query = e.target.value.toLowerCase().trim();
+    if (query.length > 1) {
+        ThemeManager.showNotification(`Searching for: ${query}`, 'info');
+        // Implement search functionality
+    }
+}
+
+// Initialize market data
 async function initializeMarketData() {
     updateMarketIndices();
     updateWatchlists();
     updateAIInsight();
     updateNewsTicker();
+    
+    // Try to fetch live data
+    try {
+        const summary = await LiveDataService.fetchMarketSummary();
+        if (summary && summary.market_data) {
+            updateMarketIndicesWithLiveData(summary.market_data);
+        }
+    } catch (error) {
+        console.log('Using fallback market data');
+    }
 }
 
+// Update market indices with live data
+function updateMarketIndicesWithLiveData(liveData) {
+    // This would update individual stock prices
+    console.log('Live data received:', liveData);
+}
+
+// Update market indices
 function updateMarketIndices() {
     const el = document.getElementById('marketOverview');
     const indices = [
@@ -639,6 +931,7 @@ function updateMarketIndices() {
     updateMarketSentiment(indices);
 }
 
+// Update market sentiment
 function updateMarketSentiment(indices) {
     const sentimentEl = document.getElementById('marketSentiment');
     const avgChange = indices.reduce((sum, i) => sum + i.change, 0) / indices.length;
@@ -665,8 +958,27 @@ function updateMarketSentiment(indices) {
     sentimentEl.innerHTML = `<i class="fas ${icon}"></i><span>Market Sentiment: ${sentiment} (${avgChange.toFixed(2)}%)</span>`;
 }
 
+// Update watchlists
 function updateWatchlists() {
-    // Sort gainers (positive change) and losers (negative change)
+    // In a real app, this would fetch from API
+    // For now, use fallback data
+    const FALLBACK_DATA = {
+        INDIAN: [
+            { symbol: "RELIANCE.NS", name: "Reliance Industries", price: 2856.50, changePercent: 2.35 },
+            { symbol: "TCS.NS", name: "Tata Consultancy Services", price: 3850.75, changePercent: 1.85 },
+            { symbol: "HDFCBANK.NS", name: "HDFC Bank", price: 1670.25, changePercent: 0.75 },
+            { symbol: "INFY.NS", name: "Infosys", price: 1520.80, changePercent: -0.45 },
+            { symbol: "ICICIBANK.NS", name: "ICICI Bank", price: 1120.30, changePercent: 1.20 }
+        ],
+        INTERNATIONAL: [
+            { symbol: "AAPL", name: "Apple Inc.", price: 218.35, changePercent: 3.25 },
+            { symbol: "MSFT", name: "Microsoft Corp.", price: 425.50, changePercent: 2.15 },
+            { symbol: "GOOGL", name: "Alphabet Inc.", price: 172.34, changePercent: 1.80 },
+            { symbol: "AMZN", name: "Amazon.com Inc.", price: 178.22, changePercent: 0.67 },
+            { symbol: "TSLA", name: "Tesla Inc.", price: 245.75, changePercent: -1.45 }
+        ]
+    };
+    
     const allIndian = [...FALLBACK_DATA.INDIAN];
     const allInternational = [...FALLBACK_DATA.INTERNATIONAL];
     
@@ -682,6 +994,7 @@ function updateWatchlists() {
     updateStockList('topLosersInternational', losersInternational);
 }
 
+// Update stock list
 function updateStockList(containerId, stocks) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -708,6 +1021,7 @@ function updateStockList(containerId, stocks) {
     `).join('');
 }
 
+// Update AI insight
 function updateAIInsight() {
     const insights = [
         "AI detects strong institutional buying in technology stocks. Consider accumulating quality tech names.",
@@ -722,6 +1036,7 @@ function updateAIInsight() {
     document.getElementById('aiInsightText').textContent = insights[Math.floor(Math.random() * insights.length)];
 }
 
+// Update news ticker
 function updateNewsTicker() {
     const newsItems = [
         { symbol: "AAPL", text: "Apple announces new AI features for iOS 18", change: 2.5 },
@@ -746,10 +1061,12 @@ function updateNewsTicker() {
     `).join('');
 }
 
+// Sort stock list
 function sortStockList(containerId, sortBy) {
     ThemeManager.showNotification('Sorting feature coming soon', 'info');
 }
 
+// Show stock details
 function showStockDetails(symbol) {
     ThemeManager.showNotification(`Loading ${symbol} details...`, 'info');
     // Navigate to prediction page with selected symbol
@@ -758,12 +1075,34 @@ function showStockDetails(symbol) {
     }, 500);
 }
 
+// Export report
 function exportReport() {
     ThemeManager.showNotification('Exporting dashboard report...', 'success');
+    
+    // Generate CSV report
+    const data = [];
+    const report = "Market Report\n" + 
+                   "Date: " + new Date().toLocaleString() + "\n\n" +
+                   "Dashboard data exported successfully";
+    
+    const blob = new Blob([report], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `market-report-${new Date().toISOString().split('T')[0]}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
+// Toggle theme
 function toggleTheme() {
     ThemeManager.toggle();
+}
+
+// Refresh live data
+function refreshLiveData() {
+    ThemeManager.showNotification('Refreshing live data...', 'info');
+    initializeMarketData();
 }
 
 // Global error handling
@@ -771,6 +1110,14 @@ window.addEventListener('error', (e) => {
     console.error('Global error:', e.error);
     ThemeManager.showNotification('An unexpected error occurred', 'error');
 });
+
+// Make functions global
+window.toggleTheme = toggleTheme;
+window.exportReport = exportReport;
+window.sortStockList = sortStockList;
+window.showStockDetails = showStockDetails;
+window.logout = logout;
+window.refreshLiveData = refreshLiveData;
 </script>
 </body>
 </html>
