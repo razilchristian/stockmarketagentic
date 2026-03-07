@@ -484,7 +484,7 @@ def live_quote(symbol):
             return jsonify({"error": "Invalid symbol"}), 400
         
         # Force refresh to get latest data
-        stock_data = get_stock_data(symbol, force_refresh=True)
+        stock_data = get_stock_data(symbol)
         
         if not stock_data:
             return jsonify({"error": "Stock data unavailable"}), 404
@@ -1191,6 +1191,9 @@ def catch_all(path):
 # ============================================
 
 if __name__ == "__main__":
+    # Get port FIRST before using it
+    port = int(os.environ.get("PORT", 5000))
+    
     print("="*60)
     print("AlphaAnalytics Gemini Enhanced AI Server")
     print("="*60)
@@ -1236,6 +1239,5 @@ if __name__ == "__main__":
     print(f"\nServer starting on http://0.0.0.0:{port}")
     print("="*60)
     
-    # IMPORTANT FIX: Use the port variable, not hardcoded 5000
-    port = int(os.environ.get("PORT", 5000))
+    # Now run the app with the port
     app.run(host="0.0.0.0", port=port, debug=False)
