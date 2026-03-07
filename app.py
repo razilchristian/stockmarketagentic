@@ -47,7 +47,7 @@ os.makedirs(HISTORY_DIR, exist_ok=True)
 
 # Cache for stock data to reduce API calls
 stock_cache = {}
-CACHE_DURATION = 60  # seconds
+CACHE_DURATION = 600  # seconds
 
 # Simple user database (in production, use real database)
 # This will persist during runtime, but will reset when server restarts
