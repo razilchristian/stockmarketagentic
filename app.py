@@ -1,4 +1,4 @@
-# AlphaAnalytics Agentic AI Backend - Complete Authentication System with Gemini 1.5 Flash Predictions
+# AlphaAnalytics Agentic AI Backend - Complete Authentication System with Predictor Module
 
 import os
 import yfinance as yf
@@ -12,8 +12,12 @@ from flask import Flask, jsonify, request, render_template, redirect, url_for, s
 from flask_cors import CORS
 from email_service import send_prediction_email
 from dotenv import load_dotenv
-from sklearn.linear_model import LinearRegression
 load_dotenv()
+
+# Import predictor from models folder
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from models.predictor import predict_price, train_model, evaluate_model
 
 # NEW: Use the new google.genai package instead of deprecated generativeai
 import google.genai as genai
@@ -260,202 +264,132 @@ def get_stock_data(symbol, force_refresh=False):
         return None
 
 # ============================================
-# NEW: GEMINI 1.5 FLASH PREDICTION FUNCTION
+# PREDICTION FUNCTION USING MODELS/PREDICTOR.PY
 # ============================================
 
-def predict_price_with_gemini(symbol, stock_data, use_gemini=True):
+def generate_stock_predictions(symbol, stock_data):
     """
-    Predict stock prices using Gemini 1.5 Flash AI with Linear Regression fallback
-    
-    Args:
-        symbol: Stock symbol
-        stock_data: Dictionary with stock data (from get_stock_data)
-        use_gemini: Whether to try Gemini first
-    
-    Returns:
-        Dictionary with open, high, low, close predictions and confidence
+    Generate stock predictions using the predictor module
     """
-    
-    # Extract data for prediction
-    current_price = stock_data['current_price']
-    recent_prices = stock_data['recent_prices']
-    volatility = stock_data['volatility']
-    ma_20 = stock_data['ma_20']
-    ma_50 = stock_data['ma_50']
-    day_high = stock_data['day_high']
-    day_low = stock_data['day_low']
-    rsi = stock_data['rsi']
-    momentum = stock_data['momentum']
-    
-    # Try Gemini first if requested and available
-    if use_gemini and client and GEMINI_API_KEY:
-        try:
-            gemini_prediction = _predict_with_gemini_api(
-                symbol, current_price, recent_prices, volatility, 
-                ma_20, ma_50, day_high, day_low, rsi, momentum
-            )
-            if gemini_prediction:
-                print(f"✓ Using Gemini 1.5 Flash AI prediction for {symbol}")
-                return gemini_prediction
-        except Exception as e:
-            print(f"Gemini prediction failed, falling back to Linear Regression: {e}")
-    
-    # Fallback to Linear Regression
-    print(f"Using Linear Regression fallback for {symbol}")
-    return _predict_with_linear_regression(current_price, recent_prices, volatility)
-
-def _predict_with_gemini_api(symbol, current_price, recent_prices, volatility, 
-                              ma_20, ma_50, day_high, day_low, rsi, momentum):
-    """
-    Use Gemini 1.5 Flash to generate intelligent price predictions
-    """
-    
-    prompt = f"""
-    As a senior financial analyst, predict tomorrow's stock prices for {symbol} with confidence intervals.
-
-    CURRENT MARKET DATA:
-    - Current Price: ${current_price:.2f}
-    - Today's High: ${day_high:.2f}
-    - Today's Low: ${day_low:.2f}
-    - Volatility (annual): {volatility:.2f}%
-    - RSI (14): {rsi:.1f}
-    - Momentum (5-day): {momentum:.2f}%
-    - 20-day MA: ${ma_20:.2f}
-    - 50-day MA: ${ma_50:.2f}
-
-    Recent price history (last 10 days): {[round(p, 2) for p in recent_prices]}
-
-    Based on technical analysis and market patterns, predict tomorrow's:
-
-    1. OPENING PRICE (with 90% confidence interval)
-    2. DAY HIGH (with 90% confidence interval)
-    3. DAY LOW (with 90% confidence interval)
-    4. CLOSING PRICE (with 90% confidence interval)
-
-    IMPORTANT RULES:
-    - All predictions MUST be within ±10% of the current price (${current_price:.2f})
-    - OPEN price should be close to today's close
-    - HIGH should be >= OPEN and CLOSE
-    - LOW should be <= OPEN and CLOSE
-    - Be realistic based on the recent price history
-    - Calculate confidence level (0-100%) for each prediction based on volatility and data quality
-
-    Return ONLY a valid JSON object with this exact structure (no other text):
-    {{
-        "open": {{"value": float, "lower_bound": float, "upper_bound": float, "confidence": int}},
-        "high": {{"value": float, "lower_bound": float, "upper_bound": float, "confidence": int}},
-        "low": {{"value": float, "lower_bound": float, "upper_bound": float, "confidence": int}},
-        "close": {{"value": float, "lower_bound": float, "upper_bound": float, "confidence": int}}
-    }}
-    """
-    
     try:
-        # Call Gemini 1.5 Flash
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt
-        )
+        # Prepare data for predictor
+        current_price = stock_data['current_price']
+        recent_prices = stock_data['recent_prices']
+        volatility = stock_data['volatility']
         
-        if hasattr(response, "text"):
-            text = response.text.strip()
-            
-            # Try to extract JSON from the response
-            json_match = re.search(r'\{.*\}', text, re.DOTALL)
-            if json_match:
-                predictions = json.loads(json_match.group())
-                
-                # Validate the predictions
-                for key in ['open', 'high', 'low', 'close']:
-                    if key not in predictions:
-                        raise ValueError(f"Missing {key} in predictions")
-                    
-                    # Ensure predictions are within reasonable range (±15% of current price)
-                    value = predictions[key]['value']
-                    if abs(value - current_price) > current_price * 0.15:
-                        # Adjust to be within range
-                        direction = 1 if value > current_price else -1
-                        predictions[key]['value'] = round(current_price * (1 + direction * 0.1), 2)
-                    
-                    # Ensure bounds are present
-                    if 'lower_bound' not in predictions[key]:
-                        predictions[key]['lower_bound'] = round(predictions[key]['value'] * 0.98, 2)
-                    if 'upper_bound' not in predictions[key]:
-                        predictions[key]['upper_bound'] = round(predictions[key]['value'] * 1.02, 2)
-                    if 'confidence' not in predictions[key]:
-                        predictions[key]['confidence'] = 85
-                
-                return predictions
-            else:
-                print("No JSON found in Gemini response")
-                return None
-        else:
-            print("Gemini response has no text attribute")
-            return None
-            
+        # Create a simple DataFrame for the predictor
+        import pandas as pd
+        data = pd.DataFrame({
+            'Close': recent_prices
+        })
+        
+        # Call the predictor function
+        predictions = predict_price(data)
+        
+        # Format the predictions with confidence bands
+        formatted_predictions = {
+            "open": {
+                "value": predictions['open'],
+                "lower_bound": round(predictions['open'] * 0.98, 2),
+                "upper_bound": round(predictions['open'] * 1.02, 2),
+                "confidence": 85
+            },
+            "high": {
+                "value": predictions['high'],
+                "lower_bound": round(predictions['high'] * 0.98, 2),
+                "upper_bound": round(predictions['high'] * 1.02, 2),
+                "confidence": 80
+            },
+            "low": {
+                "value": predictions['low'],
+                "lower_bound": round(predictions['low'] * 0.98, 2),
+                "upper_bound": round(predictions['low'] * 1.02, 2),
+                "confidence": 80
+            },
+            "close": {
+                "value": predictions['close'],
+                "lower_bound": round(predictions['close'] * 0.98, 2),
+                "upper_bound": round(predictions['close'] * 1.02, 2),
+                "confidence": 85
+            },
+            "trend": "NEUTRAL",
+            "trend_strength": 50,
+            "support": round(current_price * 0.96, 2),
+            "resistance": round(current_price * 1.04, 2),
+            "risk_factors": [
+                f"Volatility at {volatility:.1f}%",
+                f"Based on {len(recent_prices)} recent prices"
+            ],
+            "sentiment": "NEUTRAL",
+            "recommendation": "HOLD",
+            "overall_confidence": 80,
+            "analysis_summary": f"Predictor model suggests price movement based on recent trends. Current price: ${current_price:.2f}"
+        }
+        
+        print(f"✓ Generated predictions using models/predictor.py for {symbol}")
+        return formatted_predictions
+        
     except Exception as e:
-        print(f"Error in Gemini API call: {e}")
-        return None
+        print(f"Error using predictor module: {e}")
+        return generate_fallback_predictions(stock_data)
 
-def _predict_with_linear_regression(current_price, recent_prices, volatility):
-    """
-    Fallback method using Linear Regression
-    """
-    # Use recent prices for regression
-    prices = recent_prices if len(recent_prices) >= 5 else [current_price] * 5
+def generate_fallback_predictions(stock_data):
+    """Fallback prediction logic if predictor fails"""
+    current = stock_data['current_price']
+    volatility = stock_data['volatility'] / 100
     
-    # Create time index
-    X = np.arange(len(prices)).reshape(-1, 1)
-    y = np.array(prices)
-
-    # Train model
-    model = LinearRegression()
-    model.fit(X, y)
-
-    # Predict next day
-    next_day = np.array([[len(prices)]])
-    close_value = model.predict(next_day)[0]
-
-    # Ensure prediction is within reasonable range
-    max_change = current_price * 0.05  # Max 5% change
-    close_value = max(current_price - max_change, min(current_price + max_change, close_value))
-
-    # Calculate volatility for bounds
-    vol = volatility / 100 if volatility > 0 else 0.02
-
-    # Generate predictions
-    predicted_close = float(close_value)
-    predicted_open = float(current_price)
-    predicted_high = max(predicted_open, predicted_close) * (1 + vol * 0.5)
-    predicted_low = min(predicted_open, predicted_close) * (1 - vol * 0.5)
-
-    # Calculate confidence based on data quality
-    confidence = min(85, int(65 + len(recent_prices) / 2))
-
+    print(f"Generating fallback predictions based on current price: ${current:.2f}")
+    
+    trend_factor = 1 if stock_data['momentum'] > 0 else -1 if stock_data['momentum'] < 0 else 0
+    rsi_factor = (stock_data['rsi'] - 50) / 50
+    
+    combined_factor = (trend_factor * 0.6 + rsi_factor * 0.4) * volatility
+    
+    expected_change_pct = combined_factor * 2
+    close_value = current * (1 + expected_change_pct / 100)
+    close_value = max(current * 0.95, min(current * 1.05, close_value))
+    
+    confidence = max(65, min(95, int(95 - volatility * 1.5)))
+    bound_pct = volatility * 0.5
+    
     return {
         "open": {
-            "value": round(predicted_open, 2),
-            "lower_bound": round(predicted_open * (1 - vol * 0.3), 2),
-            "upper_bound": round(predicted_open * (1 + vol * 0.3), 2),
+            "value": round(current * (1 + random.uniform(-0.01, 0.01)), 2),
+            "lower_bound": round(current * (1 - bound_pct), 2),
+            "upper_bound": round(current * (1 + bound_pct), 2),
             "confidence": confidence
         },
         "high": {
-            "value": round(predicted_high, 2),
-            "lower_bound": round(predicted_high * 0.98, 2),
-            "upper_bound": round(predicted_high * 1.02, 2),
+            "value": round(max(current, close_value) * (1 + random.uniform(0.005, 0.015)), 2),
+            "lower_bound": round(max(current, close_value) * 0.99, 2),
+            "upper_bound": round(max(current, close_value) * (1 + bound_pct * 1.5), 2),
             "confidence": confidence - 5
         },
         "low": {
-            "value": round(predicted_low, 2),
-            "lower_bound": round(predicted_low * 0.98, 2),
-            "upper_bound": round(predicted_low * 1.02, 2),
+            "value": round(min(current, close_value) * (1 - random.uniform(0.005, 0.015)), 2),
+            "lower_bound": round(min(current, close_value) * (1 - bound_pct * 1.5), 2),
+            "upper_bound": round(min(current, close_value) * 1.01, 2),
             "confidence": confidence - 5
         },
         "close": {
-            "value": round(predicted_close, 2),
-            "lower_bound": round(predicted_close * (1 - vol * 0.5), 2),
-            "upper_bound": round(predicted_close * (1 + vol * 0.5), 2),
+            "value": round(close_value, 2),
+            "lower_bound": round(close_value * (1 - bound_pct), 2),
+            "upper_bound": round(close_value * (1 + bound_pct), 2),
             "confidence": confidence
-        }
+        },
+        "trend": "BULLISH" if combined_factor > 0.05 else "BEARISH" if combined_factor < -0.05 else "NEUTRAL",
+        "trend_strength": min(90, int(abs(combined_factor) * 800)),
+        "support": round(current * 0.96, 2),
+        "resistance": round(current * 1.04, 2),
+        "risk_factors": [
+            f"Volatility at {stock_data['volatility']:.1f}%",
+            f"RSI at {stock_data['rsi']:.1f} indicating {'overbought' if stock_data['rsi'] > 70 else 'oversold' if stock_data['rsi'] < 30 else 'neutral'} conditions",
+            f"Volume {stock_data['volume_trend'].lower()} compared to average"
+        ],
+        "sentiment": "NEUTRAL",
+        "recommendation": "HOLD",
+        "overall_confidence": confidence,
+        "analysis_summary": f"Technical analysis suggests {('bullish' if combined_factor > 0 else 'bearish' if combined_factor < 0 else 'neutral')} momentum with {confidence}% confidence. Current price: ${current:.2f}"
     }
 
 # ============================================
@@ -782,7 +716,7 @@ def batch_quote():
 @app.route("/api/predict", methods=["POST"])
 @login_required
 def predict():
-    """Generate price predictions for a stock using Gemini 1.5 Flash"""
+    """Generate price predictions for a stock using models/predictor.py"""
     # Rate limiting
     client_ip = request.remote_addr
     if not check_rate_limit(client_ip):
@@ -799,8 +733,8 @@ def predict():
     if not stock_data:
         return jsonify({"error": "Stock data unavailable"}), 400
 
-    # Use the new Gemini 1.5 Flash prediction function
-    predictions = predict_price_with_gemini(symbol, stock_data, use_gemini=True)
+    # Use the predictor module
+    predictions = generate_stock_predictions(symbol, stock_data)
     
     # Generate risk analysis
     risk_analysis = generate_risk_analysis(stock_data, predictions)
@@ -808,7 +742,7 @@ def predict():
     # Generate confidence bands
     confidence_bands = generate_confidence_bands(predictions, stock_data)
     
-    # Get AI analysis from Gemini
+    # Get AI analysis from Gemini (optional enhancement)
     analysis_prompt = f"""
     Based on the following data for {symbol}:
     - Current Price: ${stock_data['current_price']:.2f}
@@ -820,7 +754,7 @@ def predict():
     Provide a brief market analysis and trading recommendation in 2-3 sentences.
     """
     
-    ai_analysis = f"Analysis for {symbol}: Current price ${stock_data['current_price']:.2f} with {risk_analysis['risk_level']} risk level."
+    ai_analysis = predictions.get('analysis_summary', f'Analysis for {symbol} using predictor model.')
     
     # Only try Gemini if client exists and we have API key
     if client and GEMINI_API_KEY:
@@ -976,7 +910,7 @@ def get_agentic_tools():
         },
         {
             "name": "predict_price",
-            "description": "Generates AI-powered price predictions with confidence bands for next trading day using Gemini 1.5 Flash",
+            "description": "Generates price predictions using models/predictor.py",
             "parameters": ["symbol"]
         },
         {
@@ -1002,13 +936,15 @@ def health():
     """Health check endpoint (public)"""
     return jsonify({
         "status": "healthy",
-        "version": "Gemini Enhanced AI v2.0 with Live Data",
+        "version": "Gemini Enhanced AI v2.0 with Predictor Module",
         "ai_model": GEMINI_MODEL,
         "api_key_configured": bool(GEMINI_API_KEY),
         "email_configured": bool(EMAIL_SENDER and EMAIL_PASSWORD),
+        "predictor_loaded": True,
         "features": [
             "Live Real-time Data",
-            "Gemini 1.5 Flash Predictions",
+            "Predictor Module Integration",
+            "Gemini 1.5 Flash Enhancement",
             "Agentic AI Planning",
             "Goal-based Analysis",
             "Confidence Bands",
@@ -1023,37 +959,8 @@ def health():
     })
 
 # ============================================
-# LEGACY GEMINI FUNCTIONS (Keeping for compatibility)
+# RISK ANALYSIS FUNCTIONS
 # ============================================
-
-def generate_gemini_predictions(symbol, stock_data):
-    """Legacy function - kept for compatibility"""
-    return predict_price_with_gemini(symbol, stock_data, use_gemini=True)
-
-def generate_fallback_predictions(stock_data):
-    """Legacy fallback - now uses linear regression"""
-    current = stock_data['current_price']
-    recent_prices = stock_data['recent_prices']
-    volatility = stock_data['volatility']
-    
-    result = _predict_with_linear_regression(current, recent_prices, volatility)
-    
-    # Add extra fields for compatibility
-    result['trend'] = "NEUTRAL"
-    result['trend_strength'] = 50
-    result['support'] = round(current * 0.96, 2)
-    result['resistance'] = round(current * 1.04, 2)
-    result['risk_factors'] = [
-        f"Volatility at {stock_data['volatility']:.1f}%",
-        f"RSI at {stock_data['rsi']:.1f} indicating {'overbought' if stock_data['rsi'] > 70 else 'oversold' if stock_data['rsi'] < 30 else 'neutral'} conditions",
-        f"Volume {stock_data['volume_trend'].lower()} compared to average"
-    ]
-    result['sentiment'] = "NEUTRAL"
-    result['recommendation'] = "HOLD"
-    result['overall_confidence'] = result['close']['confidence']
-    result['analysis_summary'] = f"Technical analysis suggests neutral momentum with {result['close']['confidence']}% confidence. Current price: ${current:.2f}"
-    
-    return result
 
 def generate_risk_analysis(stock_data, predictions):
     """Generate comprehensive risk analysis"""
@@ -1177,13 +1084,13 @@ def agentic_stock_analysis(symbol, user_goal):
         if not stock_data:
             return {"error": f"Unable to fetch data for {symbol}"}
         
-        predictions = generate_fallback_predictions(stock_data)
+        predictions = generate_stock_predictions(symbol, stock_data)
         risk = generate_risk_analysis(stock_data, predictions)
         
         return {
             "symbol": symbol,
             "user_goal": user_goal,
-            "plan_executed": "1. Use get_stock_data\n2. Use fallback predictions\n3. Use risk_analysis",
+            "plan_executed": "1. Use get_stock_data\n2. Use predictor module\n3. Use risk_analysis",
             "timestamp": datetime.now().isoformat(),
             "stock_data": {
                 "current_price": stock_data['current_price'],
@@ -1199,10 +1106,10 @@ def agentic_stock_analysis(symbol, user_goal):
                 "high": predictions['high'],
                 "low": predictions['low'],
                 "close": predictions['close'],
-                "trend": predictions['trend'],
-                "trend_strength": predictions['trend_strength'],
-                "recommendation": predictions['recommendation'],
-                "overall_confidence": predictions['overall_confidence']
+                "trend": predictions.get('trend', 'NEUTRAL'),
+                "trend_strength": predictions.get('trend_strength', 50),
+                "recommendation": predictions.get('recommendation', 'HOLD'),
+                "overall_confidence": predictions.get('overall_confidence', predictions['close']['confidence'])
             },
             "risk_analysis": {
                 "risk_score": risk['risk_score'],
@@ -1212,7 +1119,7 @@ def agentic_stock_analysis(symbol, user_goal):
                 "sharpe_ratio": risk['sharpe_ratio'],
                 "risk_factors": risk['risks']
             },
-            "comprehensive_analysis": predictions['analysis_summary']
+            "comprehensive_analysis": predictions.get('analysis_summary', 'Analysis complete.')
         }
     
     planning_prompt = f"""
@@ -1223,9 +1130,10 @@ def agentic_stock_analysis(symbol, user_goal):
 
     AVAILABLE TOOLS:
     1. get_stock_data - Fetches current stock price, technical indicators, volatility, volume
-    2. predict_price - Generates AI-powered price predictions with confidence bands using Gemini 1.5 Flash
+    2. predict_price - Generates price predictions using machine learning model
     3. risk_analysis - Analyzes risks including VaR, volatility, RSI, trend reversal
     4. send_email - Sends analysis report via email
+    5. gemini_enhance - Enhances analysis with Gemini AI
 
     Based on the user's goal, create a step-by-step plan to achieve it.
     Consider:
@@ -1234,16 +1142,7 @@ def agentic_stock_analysis(symbol, user_goal):
     - What tools should be used and in what order?
     - What final output should be provided?
 
-    Return the plan as a numbered list of steps, with each step specifying:
-    - The tool to use
-    - What data to extract
-    - Why this step is necessary
-
-    Example format:
-    1. Use get_stock_data to fetch current market data for {symbol} - needed for baseline analysis
-    2. Use predict_price to generate tomorrow's price predictions - core requirement
-    3. Use risk_analysis to assess potential downsides - important for risk management
-    4. Use send_email to deliver comprehensive report - final delivery
+    Return the plan as a numbered list of steps.
     """
     
     try:
@@ -1271,7 +1170,7 @@ def agentic_stock_analysis(symbol, user_goal):
                 "plan": plan
             }
         
-        predictions = predict_price_with_gemini(symbol, stock_data, use_gemini=True)
+        predictions = generate_stock_predictions(symbol, stock_data)
         risk = generate_risk_analysis(stock_data, predictions)
         
         analysis_prompt = f"""
@@ -1288,9 +1187,6 @@ def agentic_stock_analysis(symbol, user_goal):
         - High: ${predictions['high']['value']:.2f} (Confidence: {predictions['high']['confidence']}%)
         - Low: ${predictions['low']['value']:.2f} (Confidence: {predictions['low']['confidence']}%)
         - Close: ${predictions['close']['value']:.2f} (Confidence: {predictions['close']['confidence']}%)
-        
-        Trend: {predictions.get('trend', 'NEUTRAL')} (Strength: {predictions.get('trend_strength', 50)}%)
-        Recommendation: {predictions.get('recommendation', 'HOLD')}
         
         User's Goal: {user_goal}
         
@@ -1393,7 +1289,8 @@ if __name__ == "__main__":
     print("Features:")
     print("  • User Authentication System")
     print("  • LIVE REAL-TIME DATA from yfinance")
-    print("  • Gemini 1.5 Flash AI Predictions")
+    print("  • Predictor Module Integration (models/predictor.py)")
+    print("  • Gemini 1.5 Flash AI Enhancement")
     print("  • Confidence Bands (50%/75%/90%)")
     print("  • Comprehensive Risk Analysis")
     print("  • Technical Indicators")
@@ -1406,6 +1303,7 @@ if __name__ == "__main__":
     print(f"  • Gemini API Key: {'✅ Configured' if GEMINI_API_KEY else '❌ Missing'}")
     print(f"  • Gemini Model: {GEMINI_MODEL}")
     print(f"  • Email Settings: {'✅ Configured' if (EMAIL_SENDER and EMAIL_PASSWORD) else '❌ Missing'}")
+    print(f"  • Predictor Module: ✅ Loaded from models/predictor.py")
     print("="*60)
     print("\nAuthentication Flow:")
     print("  • /              - Redirects to /login or /jeet based on session")
