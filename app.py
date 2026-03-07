@@ -1233,9 +1233,9 @@ if __name__ == "__main__":
     print(f"  • Email:    demo@alpha.com")
     print(f"  • Password: demo123")
     print("="*60)
-    print(f"\nServer starting on http://0.0.0.0:5000")
+    print(f"\nServer starting on http://0.0.0.0:{port}")
     print("="*60)
     
-    import os
+    # IMPORTANT FIX: Use the port variable, not hardcoded 5000
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=port, debug=False)
