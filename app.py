@@ -24,14 +24,14 @@ import google.genai as genai
 from google.genai import types
 
 # ---------------------------------
-# GEMINI CONFIGURATION (UPDATED)
+# GEMINI CONFIGURATION WITH AUTO-DIAGNOSTICS
 # ---------------------------------
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER", "razilchristian@gmail.com")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-# Debug: Check if API key is loaded (only show first few characters)
+# Debug: Check if API key is loaded
 if GEMINI_API_KEY:
     print(f"✓ Gemini API Key loaded: {GEMINI_API_KEY[:6]}...")
 else:
@@ -39,11 +39,86 @@ else:
 
 # Initialize the new client
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+GEMINI_MODEL = None  # Will be set after checking available models
 
-# Use the correct model name for google.genai client (without "models/" prefix)
-GEMINI_MODEL = "models/gemini-pro"  # ✅ CORRECT for google.genai client
-
-print(f"✓ Using Gemini model: {GEMINI_MODEL}")
+# ============================================
+# AUTO-DIAGNOSTIC: Check available Gemini models
+# ============================================
+if client:
+    try:
+        print("="*60)
+        print("🔍 DIAGNOSIS: Checking available Gemini models...")
+        print("="*60)
+        
+        models = client.models.list()
+        available_models = []
+        
+        print("Models available to your API key:\n")
+        for model in models:
+            model_name = model.name
+            # Remove 'models/' prefix for cleaner display
+            display_name = model_name.replace('models/', '')
+            available_models.append(display_name)
+            
+            # Show which methods each model supports
+            actions = getattr(model, 'supported_actions', [])
+            actions_str = ', '.join(actions) if actions else 'generateContent, countTokens'
+            print(f"  • {display_name}")
+            print(f"    Supports: {actions_str}\n")
+        
+        if available_models:
+            print(f"\n✅ Found {len(available_models)} available models")
+            
+            # Try to find a suitable model in order of preference
+            preferred_models = [
+                "gemini-2.0-flash-exp",
+                "gemini-2.0-flash",
+                "gemini-1.5-flash",
+                "gemini-1.5-pro",
+                "gemini-pro",
+                "gemini-1.0-pro"
+            ]
+            
+            for preferred in preferred_models:
+                if preferred in available_models:
+                    GEMINI_MODEL = preferred
+                    print(f"\n✅ Selected model: {GEMINI_MODEL}")
+                    break
+            
+            # If none of the preferred models found, use the first available
+            if not GEMINI_MODEL and available_models:
+                GEMINI_MODEL = available_models[0]
+                print(f"\n⚠ No preferred model found, using: {GEMINI_MODEL}")
+            
+            # Test the selected model
+            if GEMINI_MODEL:
+                try:
+                    test_response = client.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents="Say 'OK' in one word"
+                    )
+                    if hasattr(test_response, 'text'):
+                        print(f"✓ Model test successful: {test_response.text}")
+                except Exception as e:
+                    print(f"⚠ Model test failed: {e}")
+                    print("  The app will use predictor module as fallback")
+                    client = None
+        else:
+            print("❌ No models found for this API key")
+            client = None
+            
+        print("="*60)
+    except Exception as e:
+        print(f"❌ Error accessing Gemini API: {e}")
+        print("\nThis could mean:")
+        print(" 1. Your API key is invalid or expired")
+        print(" 2. The API key doesn't have Gemini API enabled")
+        print(" 3. Billing is not enabled for your project")
+        print(" 4. The API key is for a different Google service")
+        print("\nThe app will continue using the predictor module for all predictions.")
+        client = None
+else:
+    print("⚠ Gemini client not initialized - using predictor module only")
 
 # ---------------------------------
 # FLASK APP
@@ -742,7 +817,7 @@ def predict():
     # Generate confidence bands
     confidence_bands = generate_confidence_bands(predictions, stock_data)
     
-    # Get AI analysis from Gemini (optional enhancement)
+    # Get AI analysis from Gemini (only if client is available)
     analysis_prompt = f"""
     Based on the following data for {symbol}:
     - Current Price: ${stock_data['current_price']:.2f}
@@ -756,8 +831,8 @@ def predict():
     
     ai_analysis = predictions.get('analysis_summary', f'Analysis for {symbol} using predictor model.')
     
-    # Only try Gemini if client exists and we have API key
-    if client and GEMINI_API_KEY:
+    # Only try Gemini if client exists and we have a valid model
+    if client and GEMINI_MODEL:
         try:
             analysis_response = client.models.generate_content(
                 model=GEMINI_MODEL,
@@ -765,6 +840,7 @@ def predict():
             )
             if hasattr(analysis_response, "text"):
                 ai_analysis = analysis_response.text
+                print(f"✓ Gemini analysis successful for {symbol}")
         except Exception as e:
             print(f"Gemini analysis error: {e}")
             # Fall back to the prediction summary
@@ -854,7 +930,7 @@ def market_summary():
     text = "Market showing mixed signals with varying volatility levels."
     
     # Only try Gemini if client exists
-    if client and GEMINI_API_KEY:
+    if client and GEMINI_MODEL:
         try:
             res = client.models.generate_content(
                 model=GEMINI_MODEL,
@@ -862,6 +938,7 @@ def market_summary():
             )
             if hasattr(res, "text"):
                 text = res.text
+                print(f"✓ Gemini market summary successful")
         except Exception as e:
             print(f"Market summary Gemini error: {e}")
 
@@ -937,14 +1014,15 @@ def health():
     return jsonify({
         "status": "healthy",
         "version": "Gemini Enhanced AI v2.0 with Predictor Module",
-        "ai_model": GEMINI_MODEL,
+        "ai_model": GEMINI_MODEL if GEMINI_MODEL else "None (using predictor)",
         "api_key_configured": bool(GEMINI_API_KEY),
+        "gemini_working": bool(client and GEMINI_MODEL),
         "email_configured": bool(EMAIL_SENDER and EMAIL_PASSWORD),
         "predictor_loaded": True,
         "features": [
             "Live Real-time Data",
             "Predictor Module Integration",
-            "Gemini 1.5 Flash Enhancement",
+            "Gemini AI Enhancement" if client and GEMINI_MODEL else "Gemini AI (disabled)",
             "Agentic AI Planning",
             "Goal-based Analysis",
             "Confidence Bands",
@@ -1079,7 +1157,7 @@ def agentic_stock_analysis(symbol, user_goal):
     """
     
     # If no API key, return simple analysis
-    if not client or not GEMINI_API_KEY:
+    if not client or not GEMINI_MODEL:
         stock_data = get_stock_data(symbol, force_refresh=True)
         if not stock_data:
             return {"error": f"Unable to fetch data for {symbol}"}
@@ -1290,7 +1368,7 @@ if __name__ == "__main__":
     print("  • User Authentication System")
     print("  • LIVE REAL-TIME DATA from yfinance")
     print("  • Predictor Module Integration (models/predictor.py)")
-    print("  • Gemini 1.5 Flash AI Enhancement")
+    print("  • Gemini AI Enhancement" if client and GEMINI_MODEL else "  • Gemini AI (disabled - using predictor only)")
     print("  • Confidence Bands (50%/75%/90%)")
     print("  • Comprehensive Risk Analysis")
     print("  • Technical Indicators")
@@ -1301,7 +1379,8 @@ if __name__ == "__main__":
     print("="*60)
     print("\n✓ Configuration Status:")
     print(f"  • Gemini API Key: {'✅ Configured' if GEMINI_API_KEY else '❌ Missing'}")
-    print(f"  • Gemini Model: {GEMINI_MODEL}")
+    print(f"  • Gemini Model: {GEMINI_MODEL if GEMINI_MODEL else '❌ Not available'}")
+    print(f"  • Gemini Status: {'✅ Working' if (client and GEMINI_MODEL) else '⚠ Using fallback'}")
     print(f"  • Email Settings: {'✅ Configured' if (EMAIL_SENDER and EMAIL_PASSWORD) else '❌ Missing'}")
     print(f"  • Predictor Module: ✅ Loaded from models/predictor.py")
     print("="*60)
