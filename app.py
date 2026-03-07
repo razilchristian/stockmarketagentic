@@ -14,10 +14,10 @@ from email_service import send_prediction_email
 from dotenv import load_dotenv
 load_dotenv()
 
-# Import predictor from models folder
+# Import predictor from models folder - ONLY import what exists
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from models.predictor import predict_price, train_model, evaluate_model
+from models.predictor import predict_price
 
 # NEW: Use the new google.genai package instead of deprecated generativeai
 import google.genai as genai
