@@ -8,7 +8,7 @@ import random
 import json
 import re
 from datetime import datetime, timedelta
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, redirect, url_for, session
 from flask_cors import CORS
 from email_service import send_prediction_email
 from dotenv import load_dotenv
@@ -38,6 +38,7 @@ GEMINI_MODEL = "models/gemini-2.0-flash"
 # ---------------------------------
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.secret_key = os.urandom(24)  # For session management
 CORS(app)
 
 HISTORY_DIR = "history"
@@ -46,6 +47,15 @@ os.makedirs(HISTORY_DIR, exist_ok=True)
 # Cache for stock data to reduce API calls
 stock_cache = {}
 CACHE_DURATION = 60  # seconds
+
+# Simple user database (in production, use real database)
+users = {
+    "demo@alpha.com": {
+        "password": "demo123",
+        "first_name": "Demo",
+        "last_name": "User"
+    }
+}
 
 # ---------------------------------
 # HELPER FUNCTIONS
@@ -218,11 +228,178 @@ def get_stock_data(symbol, force_refresh=False):
         print(f"Stock fetch error for {symbol}:", e)
         return None
 
+# ============================================
+# AUTHENTICATION ROUTES
+# ============================================
+
+@app.route("/")
+def landing():
+    """Redirect to login page"""
+    return redirect(url_for('login'))
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """Login page"""
+    if request.method == "POST":
+        data = request.get_json() if request.is_json else request.form
+        email = data.get("email")
+        password = data.get("password")
+        remember = data.get("remember", False)
+        
+        # Check credentials
+        if email in users and users[email]["password"] == password:
+            session["user"] = {
+                "email": email,
+                "first_name": users[email]["first_name"],
+                "last_name": users[email]["last_name"]
+            }
+            return jsonify({"success": True, "redirect": "/dashboard"})
+        else:
+            return jsonify({"success": False, "error": "Invalid email or password"}), 401
+    
+    # GET request - show login page
+    return render_template("login.html")
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    """Signup page"""
+    if request.method == "POST":
+        data = request.get_json() if request.is_json else request.form
+        first_name = data.get("first_name") or data.get("firstName")
+        last_name = data.get("last_name") or data.get("lastName")
+        email = data.get("email")
+        password = data.get("password")
+        
+        # Validate input
+        if not all([first_name, last_name, email, password]):
+            return jsonify({"success": False, "error": "All fields are required"}), 400
+        
+        # Check if user already exists
+        if email in users:
+            return jsonify({"success": False, "error": "Email already registered"}), 400
+        
+        # Create new user
+        users[email] = {
+            "password": password,
+            "first_name": first_name,
+            "last_name": last_name
+        }
+        
+        # Auto login after signup
+        session["user"] = {
+            "email": email,
+            "first_name": first_name,
+            "last_name": last_name
+        }
+        
+        return jsonify({"success": True, "redirect": "/dashboard"})
+    
+    # GET request - show signup page
+    return render_template("signup.html")
+
+@app.route("/logout")
+def logout():
+    """Logout user"""
+    session.pop("user", None)
+    return redirect(url_for('login'))
+
+# ============================================
+# PROTECTED ROUTES (Require Authentication)
+# ============================================
+
+def login_required(f):
+    """Decorator to require login"""
+    def decorated_function(*args, **kwargs):
+        if "user" not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
+    return decorated_function
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    """Main dashboard (jeet.html)"""
+    return render_template("jeet.html", user=session.get("user"))
+
+@app.route("/jeet")
+@login_required
+def jeet():
+    """Alias for dashboard"""
+    return render_template("jeet.html", user=session.get("user"))
+
+@app.route("/portfolio")
+@login_required
+def portfolio():
+    """Portfolio page"""
+    return render_template("portfolio.html", user=session.get("user"))
+
+@app.route("/mystock")
+@login_required
+def mystock():
+    """My Stock page"""
+    return render_template("mystock.html", user=session.get("user"))
+
+@app.route("/deposit")
+@login_required
+def deposit():
+    """Deposit page"""
+    return render_template("deposit.html", user=session.get("user"))
+
+@app.route("/insight")
+@login_required
+def insight():
+    """Insight page"""
+    return render_template("insight.html", user=session.get("user"))
+
+@app.route("/prediction")
+@login_required
+def prediction():
+    """Prediction page"""
+    return render_template("prediction.html", user=session.get("user"))
+
+@app.route("/news")
+@login_required
+def news():
+    """News page"""
+    return render_template("news.html", user=session.get("user"))
+
+@app.route("/videos")
+@login_required
+def videos():
+    """Videos page"""
+    return render_template("videos.html", user=session.get("user"))
+
+@app.route("/superstars")
+@login_required
+def superstars():
+    """Superstars page"""
+    return render_template("superstars.html", user=session.get("user"))
+
+@app.route("/alerts")
+@login_required
+def alerts():
+    """Alerts page"""
+    return render_template("alerts.html", user=session.get("user"))
+
+@app.route("/help")
+@login_required
+def help():
+    """Help page"""
+    return render_template("help.html", user=session.get("user"))
+
+@app.route("/profile")
+@login_required
+def profile():
+    """Profile page"""
+    return render_template("profile.html", user=session.get("user"))
+
 # ---------------------------------
-# NEW: LIVE QUOTE ENDPOINT FOR REAL-TIME DATA
+# LIVE QUOTE ENDPOINT FOR REAL-TIME DATA
 # ---------------------------------
 
 @app.route("/api/live-quote/<symbol>", methods=["GET"])
+@login_required
 def live_quote(symbol):
     """Get REAL-TIME stock data from yfinance"""
     try:
@@ -261,10 +438,11 @@ def live_quote(symbol):
         return jsonify({"error": str(e)}), 500
 
 # ---------------------------------
-# NEW: BATCH QUOTE ENDPOINT FOR MULTIPLE SYMBOLS
+# BATCH QUOTE ENDPOINT FOR MULTIPLE SYMBOLS
 # ---------------------------------
 
 @app.route("/api/batch-quote", methods=["POST"])
+@login_required
 def batch_quote():
     """Get real-time data for multiple symbols at once"""
     try:
@@ -295,7 +473,7 @@ def batch_quote():
         return jsonify({"error": str(e)}), 500
 
 # ---------------------------------
-# GEMINI ENHANCED PRICE PREDICTION (UPDATED)
+# GEMINI ENHANCED PRICE PREDICTION
 # ---------------------------------
 
 def generate_gemini_predictions(symbol, stock_data):
@@ -365,33 +543,28 @@ def generate_gemini_predictions(symbol, stock_data):
     """
     
     try:
-        # UPDATED: Use the new client API
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt
         )
         
         if hasattr(response, "text"):
-            # Extract JSON from response
             text = response.text
-            # Find JSON between curly braces
             json_match = re.search(r'\{.*\}', text, re.DOTALL)
             if json_match:
                 predictions = json.loads(json_match.group())
                 
-                # Validate that predictions are within reasonable range
+                # Validate predictions are within reasonable range
                 current = stock_data['current_price']
                 for key in ['open', 'high', 'low', 'close']:
                     if key in predictions:
                         value = predictions[key]['value']
-                        # If prediction is too far from current price, adjust it
-                        if abs(value - current) > current * 0.15:  # 15% threshold
+                        if abs(value - current) > current * 0.15:
                             print(f"Warning: {key} prediction {value} too far from current {current}, adjusting")
                             predictions[key]['value'] = round(current * (1 + (value - current) / current * 0.5), 2)
                 
                 return predictions
             else:
-                # Fallback to structured response
                 return generate_fallback_predictions(stock_data)
         else:
             return generate_fallback_predictions(stock_data)
@@ -401,29 +574,22 @@ def generate_gemini_predictions(symbol, stock_data):
         return generate_fallback_predictions(stock_data)
 
 def generate_fallback_predictions(stock_data):
-    """Fallback prediction logic if Gemini fails - NOW USING CURRENT PRICE"""
+    """Fallback prediction logic if Gemini fails"""
     current = stock_data['current_price']
     volatility = stock_data['volatility'] / 100
     
     print(f"Generating fallback predictions based on current price: ${current:.2f}")
     
-    # More sophisticated fallback predictions BASED ON CURRENT PRICE
     trend_factor = 1 if stock_data['momentum'] > 0 else -1 if stock_data['momentum'] < 0 else 0
-    rsi_factor = (stock_data['rsi'] - 50) / 50  # -1 to 1
+    rsi_factor = (stock_data['rsi'] - 50) / 50
     
     combined_factor = (trend_factor * 0.6 + rsi_factor * 0.4) * volatility
     
-    # Predict close with confidence bands -保持在当前价格的合理范围内
-    expected_change_pct = combined_factor * 2  # Max ±2% change
+    expected_change_pct = combined_factor * 2
     close_value = current * (1 + expected_change_pct / 100)
-    
-    # Ensure predictions are within reasonable range (±5%)
     close_value = max(current * 0.95, min(current * 1.05, close_value))
     
-    # Confidence based on volatility
     confidence = max(65, min(95, int(95 - volatility * 1.5)))
-    
-    # Calculate bounds based on volatility
     bound_pct = volatility * 0.5
     
     return {
@@ -475,7 +641,6 @@ def generate_risk_analysis(stock_data, predictions):
     
     risks = []
     
-    # Volatility risk
     if stock_data['volatility'] > 40:
         risks.append({
             "level": "HIGH",
@@ -493,7 +658,6 @@ def generate_risk_analysis(stock_data, predictions):
             "mitigation": "Set wider stop-losses"
         })
     
-    # RSI risk
     if stock_data['rsi'] > 70:
         risks.append({
             "level": "MEDIUM",
@@ -511,7 +675,6 @@ def generate_risk_analysis(stock_data, predictions):
             "mitigation": "Look for confirmation before selling"
         })
     
-    # Volume risk
     if stock_data['volume_trend'] == "LOW":
         risks.append({
             "level": "LOW",
@@ -521,7 +684,6 @@ def generate_risk_analysis(stock_data, predictions):
             "mitigation": "Use limit orders"
         })
     
-    # Trend reversal risk
     if predictions and predictions.get('trend') == "BULLISH" and stock_data['momentum'] < -5:
         risks.append({
             "level": "MEDIUM",
@@ -531,7 +693,6 @@ def generate_risk_analysis(stock_data, predictions):
             "mitigation": "Wait for confirmation"
         })
     
-    # Value at Risk
     risks.append({
         "level": "INFO",
         "type": "VALUE AT RISK",
@@ -540,7 +701,6 @@ def generate_risk_analysis(stock_data, predictions):
         "mitigation": "Adjust position size accordingly"
     })
     
-    # Calculate overall risk score (0-100)
     risk_score = min(100, int(
         stock_data['volatility'] * 1.2 +
         (max(0, stock_data['rsi'] - 70) * 1.5 if stock_data['rsi'] > 70 else max(0, 30 - stock_data['rsi']) * 1.5) +
@@ -568,17 +728,14 @@ def generate_confidence_bands(predictions, stock_data):
     if not predictions:
         return None
     
-    # Create confidence bands for different confidence levels
     bands = []
     
-    # 90% confidence band
     bands.append({
         "level": 90,
         "upper": predictions['close']['upper_bound'],
         "lower": predictions['close']['lower_bound']
     })
     
-    # 75% confidence band (narrower)
     price_range = predictions['close']['upper_bound'] - predictions['close']['lower_bound']
     bands.append({
         "level": 75,
@@ -586,7 +743,6 @@ def generate_confidence_bands(predictions, stock_data):
         "lower": predictions['close']['value'] - price_range * 0.5
     })
     
-    # 50% confidence band (even narrower)
     bands.append({
         "level": 50,
         "upper": predictions['close']['value'] + price_range * 0.25,
@@ -636,7 +792,6 @@ def agentic_stock_analysis(symbol, user_goal):
     """
     
     try:
-        # Step 1: Generate the plan using Gemini
         planning_response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=planning_prompt
@@ -653,8 +808,6 @@ def agentic_stock_analysis(symbol, user_goal):
         print(plan)
         print("="*60 + "\n")
         
-        # Step 2: Execute the core tools regardless of plan
-        # Always fetch stock data first
         stock_data = get_stock_data(symbol, force_refresh=True)
         
         if not stock_data:
@@ -663,13 +816,9 @@ def agentic_stock_analysis(symbol, user_goal):
                 "plan": plan
             }
         
-        # Generate predictions
         predictions = generate_gemini_predictions(symbol, stock_data)
-        
-        # Generate risk analysis
         risk = generate_risk_analysis(stock_data, predictions)
         
-        # Step 3: Generate comprehensive analysis summary
         analysis_prompt = f"""
         Based on the analysis for {symbol}:
 
@@ -704,7 +853,6 @@ def agentic_stock_analysis(symbol, user_goal):
         
         comprehensive_analysis = analysis_response.text if hasattr(analysis_response, "text") else predictions.get('analysis_summary', 'Analysis complete.')
         
-        # Step 4: Prepare final response
         result = {
             "symbol": symbol,
             "user_goal": user_goal,
@@ -740,7 +888,6 @@ def agentic_stock_analysis(symbol, user_goal):
             "comprehensive_analysis": comprehensive_analysis
         }
         
-        # Step 5: Send email if goal mentions notification/email
         if "email" in user_goal.lower() or "mail" in user_goal.lower() or "notif" in user_goal.lower():
             try:
                 send_prediction_email(
@@ -771,6 +918,7 @@ def agentic_stock_analysis(symbol, user_goal):
 # ============================================
 
 @app.route("/api/agentic-analyze", methods=["POST"])
+@login_required
 def agentic_analyze():
     """
     Endpoint for agentic stock analysis
@@ -791,7 +939,6 @@ def agentic_analyze():
         if not user_goal:
             return jsonify({"error": "Please provide your investment goal"}), 400
         
-        # Perform agentic analysis
         result = agentic_stock_analysis(symbol, user_goal)
         
         return jsonify(result)
@@ -804,6 +951,7 @@ def agentic_analyze():
 # ============================================
 
 @app.route("/api/agentic-tools", methods=["GET"])
+@login_required
 def get_agentic_tools():
     """Return available tools for the agentic system"""
     tools = [
@@ -840,6 +988,7 @@ def get_agentic_tools():
 # ---------------------------------
 
 @app.route("/api/predict", methods=["POST"])
+@login_required
 def predict():
     data = request.get_json()
     symbol = data.get("symbol", "AAPL").upper()
@@ -852,16 +1001,10 @@ def predict():
     if not stock_data:
         return jsonify({"error": "Stock data unavailable"}), 400
 
-    # Generate Gemini-powered predictions
     predictions = generate_gemini_predictions(symbol, stock_data)
-    
-    # Generate comprehensive risk analysis
     risk_analysis = generate_risk_analysis(stock_data, predictions)
-    
-    # Generate confidence bands
     confidence_bands = generate_confidence_bands(predictions, stock_data)
     
-    # Get AI analysis from Gemini
     analysis_prompt = f"""
     Based on the following data for {symbol}:
     - Current Price: ${stock_data['current_price']:.2f}
@@ -929,6 +1072,7 @@ def predict():
 # ---------------------------------
 
 @app.route("/api/market-summary")
+@login_required
 def market_summary():
     stocks = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA"]
     data = []
@@ -991,24 +1135,21 @@ def health():
             "Technical Indicators",
             "Sentiment Analysis",
             "VaR Calculation",
-            "Email Notifications"
+            "Email Notifications",
+            "User Authentication"
         ]
     })
 
 # ---------------------------------
-# SERVE UI PAGES
+# FALLBACK ROUTE FOR UNKNOWN PAGES
 # ---------------------------------
 
-@app.route("/")
-def index():
-    return render_template("jeet.html")
-
-@app.route("/<page>")
-def pages(page):
-    try:
-        return render_template(f"{page}.html")
-    except:
-        return render_template("jeet.html")
+@app.route("/<path:path>")
+def catch_all(path):
+    """Catch-all route - redirect to login if not authenticated, otherwise show 404"""
+    if "user" not in session:
+        return redirect(url_for('login'))
+    return render_template("404.html"), 404
 
 # ---------------------------------
 # RUN SERVER
@@ -1019,6 +1160,7 @@ if __name__ == "__main__":
     print("AlphaAnalytics Gemini Enhanced AI Server")
     print("="*60)
     print("Features:")
+    print("  • User Authentication System")
     print("  • LIVE REAL-TIME DATA from yfinance")
     print("  • Gemini-Powered Predictions")
     print("  • Confidence Bands (50%/75%/90%)")
@@ -1029,7 +1171,27 @@ if __name__ == "__main__":
     print("  • Goal-based Stock Analysis")
     print("  • Email Notifications")
     print("="*60)
-    print("\nAvailable Endpoints:")
+    print("\nAvailable Routes:")
+    print("  GET  /              - Redirects to /login")
+    print("  GET  /login         - Login page")
+    print("  POST /login         - Login API")
+    print("  GET  /signup        - Signup page")
+    print("  POST /signup        - Signup API")
+    print("  GET  /logout        - Logout")
+    print("  GET  /dashboard     - Main dashboard (requires auth)")
+    print("  GET  /jeet          - Alias for dashboard")
+    print("  GET  /portfolio     - Portfolio page")
+    print("  GET  /mystock       - My Stock page")
+    print("  GET  /deposit       - Deposit page")
+    print("  GET  /insight       - Insight page")
+    print("  GET  /prediction    - Prediction page")
+    print("  GET  /news          - News page")
+    print("  GET  /videos        - Videos page")
+    print("  GET  /superstars    - Superstars page")
+    print("  GET  /alerts        - Alerts page")
+    print("  GET  /help          - Help page")
+    print("  GET  /profile       - Profile page")
+    print("\nAPI Endpoints (require auth):")
     print("  GET  /api/live-quote/<symbol> - Get REAL-TIME stock data")
     print("  POST /api/batch-quote - Get multiple stock quotes")
     print("  POST /api/predict - Standard price prediction")
@@ -1038,6 +1200,7 @@ if __name__ == "__main__":
     print("  GET  /api/market-summary - Market overview")
     print("  GET  /api/health - Health check")
     print("="*60)
+    
     import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=5000, debug=True)
