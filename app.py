@@ -36,7 +36,7 @@ else:
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # Use a more compatible model - FIXED: Changed from gemini-2.0-flash to gemini-1.5-flash
-GEMINI_MODEL = "models/gemini-1.5-flash"  # More widely available model
+GEMINI_MODEL = "gemini-1.5-flash"  # More widely available model
 # Alternative if above doesn't work: GEMINI_MODEL = "models/gemini-1.5-flash"
 
 print(f"✓ Using Gemini model: {GEMINI_MODEL}")
