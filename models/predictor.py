@@ -1,3 +1,6 @@
+# predictor.py
+# Stock price prediction module with Gemini AI and Linear Regression fallback
+
 import os
 import json
 import re
@@ -9,7 +12,36 @@ from google.genai import types
 # Initialize Gemini client (make sure GEMINI_API_KEY is set in environment)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
-GEMINI_MODEL = "gemini-1.5-flash"  # Using the correct model name
+
+# Try multiple model names in order of preference
+PREFERRED_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-1.5-flash", 
+    "gemini-pro",
+    "gemini-1.0-pro"
+]
+
+# Find the first working model
+GEMINI_MODEL = None
+if client:
+    for model_name in PREFERRED_MODELS:
+        try:
+            # Test the model with a simple query
+            test_response = client.models.generate_content(
+                model=model_name,
+                contents="OK"
+            )
+            if hasattr(test_response, 'text'):
+                GEMINI_MODEL = model_name
+                print(f"✓ Using Gemini model: {GEMINI_MODEL}")
+                break
+        except Exception as e:
+            continue
+    
+    if not GEMINI_MODEL:
+        print("⚠ No working Gemini model found - using Linear Regression only")
+else:
+    print("⚠ Gemini client not initialized - using Linear Regression only")
 
 def predict_price(data, symbol="UNKNOWN", use_gemini=True):
     """
@@ -33,8 +65,8 @@ def predict_price(data, symbol="UNKNOWN", use_gemini=True):
         volatility = float(data["Close"].pct_change().std() * np.sqrt(252) * 100)
         ma_20 = float(data["Close"].tail(20).mean())
         ma_50 = float(data["Close"].tail(50).mean()) if len(data) >= 50 else latest_price
-        day_high = float(data["High"].tail(1).max())
-        day_low = float(data["Low"].tail(1).min())
+        day_high = float(data["High"].tail(1).max()) if 'High' in data.columns else latest_price * 1.02
+        day_low = float(data["Low"].tail(1).min()) if 'Low' in data.columns else latest_price * 0.98
     else:
         recent_prices = data["Close"].tolist()
         volatility = 20.0  # Default volatility
@@ -44,7 +76,7 @@ def predict_price(data, symbol="UNKNOWN", use_gemini=True):
         day_low = latest_price * 0.98
     
     # Try Gemini first if requested and available
-    if use_gemini and client and GEMINI_API_KEY:
+    if use_gemini and client and GEMINI_MODEL:
         try:
             gemini_prediction = _predict_with_gemini(symbol, latest_price, recent_prices, volatility, ma_20, ma_50, day_high, day_low)
             if gemini_prediction:
@@ -59,7 +91,7 @@ def predict_price(data, symbol="UNKNOWN", use_gemini=True):
 
 def _predict_with_gemini(symbol, latest_price, recent_prices, volatility, ma_20, ma_50, day_high, day_low):
     """
-    Use Gemini 1.5 Flash to generate intelligent price predictions
+    Use Gemini to generate intelligent price predictions
     """
     
     prompt = f"""
@@ -99,7 +131,7 @@ def _predict_with_gemini(symbol, latest_price, recent_prices, volatility, ma_20,
     """
     
     try:
-        # Call Gemini 1.5 Flash
+        # Call Gemini with the selected model
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt
@@ -131,7 +163,7 @@ def _predict_with_gemini(symbol, latest_price, recent_prices, volatility, ma_20,
                     if 'upper_bound' not in predictions[key]:
                         predictions[key]['upper_bound'] = round(predictions[key]['value'] * 1.02, 2)
                 
-                # Add confidence scores (can be calculated or fixed)
+                # Add confidence scores
                 for key in predictions:
                     predictions[key]['confidence'] = 85  # Default confidence
                 
@@ -188,30 +220,10 @@ def _predict_with_linear_regression(data):
     confidence = min(85, int(50 + len(prices) / 2))
 
     return {
-        "open": {
-            "value": round(predicted_open, 2),
-            "lower_bound": round(predicted_open * 0.98, 2),
-            "upper_bound": round(predicted_open * 1.02, 2),
-            "confidence": confidence
-        },
-        "high": {
-            "value": round(predicted_high, 2),
-            "lower_bound": round(predicted_high * 0.98, 2),
-            "upper_bound": round(predicted_high * 1.02, 2),
-            "confidence": confidence - 5
-        },
-        "low": {
-            "value": round(predicted_low, 2),
-            "lower_bound": round(predicted_low * 0.98, 2),
-            "upper_bound": round(predicted_low * 1.02, 2),
-            "confidence": confidence - 5
-        },
-        "close": {
-            "value": round(predicted_close, 2),
-            "lower_bound": round(predicted_close * 0.98, 2),
-            "upper_bound": round(predicted_close * 1.02, 2),
-            "confidence": confidence
-        }
+        "open": round(predicted_open, 2),
+        "high": round(predicted_high, 2),
+        "low": round(predicted_low, 2),
+        "close": round(predicted_close, 2)
     }
 
 # Optional: Test function
