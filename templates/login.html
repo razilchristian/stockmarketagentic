@@ -65,7 +65,7 @@
       position: relative;
     }
 
-    /* 3D Canvas Background */
+    /* Animated Candlestick Background */
     #canvas-container {
       position: fixed;
       top: 0;
@@ -75,7 +75,7 @@
       z-index: 0;
     }
 
-    /* Animated Grid Lines */
+    /* Grid Overlay */
     .grid-overlay {
       position: fixed;
       top: 0;
@@ -96,7 +96,7 @@
       100% { transform: translate(50px, 50px); }
     }
 
-    /* Floating Particles */
+    /* Particles */
     .particles {
       position: fixed;
       top: 0;
@@ -652,7 +652,7 @@
       letter-spacing: 0.5px;
     }
 
-    /* Demo Credentials */
+    /* Demo Box */
     .demo-box {
       margin: 20px 0;
       padding: 15px;
@@ -734,6 +734,28 @@
     }
 
     .btn.loading .loading-dots {
+      display: flex;
+    }
+
+    /* Error Message */
+    .error-message {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      margin-bottom: 20px;
+      color: var(--danger);
+      font-size: 14px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .error-message i {
+      font-size: 16px;
+    }
+
+    .error-message.show {
       display: flex;
     }
 
@@ -864,6 +886,10 @@
       border-left: 4px solid var(--success);
     }
 
+    .notification.error {
+      border-left: 4px solid var(--danger);
+    }
+
     .notification-content {
       display: flex;
       align-items: center;
@@ -872,6 +898,11 @@
 
     .notification.success i {
       color: var(--success);
+      font-size: 20px;
+    }
+
+    .notification.error i {
+      color: var(--danger);
       font-size: 20px;
     }
   </style>
@@ -941,6 +972,12 @@
       <div class="welcome-text">
         <h2>Welcome Back</h2>
         <p>Sign in to access your portfolio</p>
+      </div>
+
+      <!-- Error Message -->
+      <div class="error-message" id="errorMessage">
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="errorText"></span>
       </div>
 
       <!-- Login Form -->
@@ -1282,6 +1319,37 @@
       }
     }
 
+    // ==================== SHOW ERROR ====================
+    function showError(message) {
+      const errorEl = document.getElementById('errorMessage');
+      const errorText = document.getElementById('errorText');
+      errorText.textContent = message;
+      errorEl.classList.add('show');
+      
+      setTimeout(() => {
+        errorEl.classList.remove('show');
+      }, 5000);
+    }
+
+    // ==================== SHOW NOTIFICATION ====================
+    function showNotification(message, type = 'success') {
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      notification.innerHTML = `
+        <div class="notification-content">
+          <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+          <span>${message}</span>
+        </div>
+      `;
+      document.body.appendChild(notification);
+      
+      setTimeout(() => notification.classList.add('show'), 100);
+      setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 500);
+      }, 3000);
+    }
+
     // ==================== FORM SUBMISSION ====================
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1293,42 +1361,53 @@
       const password = document.getElementById('password').value;
       const remember = document.getElementById('remember').checked;
       
-      // Simulate API call
-      setTimeout(() => {
+      try {
+        // Call the actual backend API
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: email,
+            password: password,
+            remember: remember
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          // Store user info in localStorage for the dashboard
+          const userInfo = {
+            email: email,
+            first_name: email.split('@')[0], // Extract from email or get from response
+            last_name: ''
+          };
+          localStorage.setItem('alpha_user', JSON.stringify(userInfo));
+          
+          // Show success message
+          showNotification('Login successful! Redirecting...', 'success');
+          
+          // Redirect to dashboard
+          setTimeout(() => {
+            window.location.href = data.redirect || '/jeet';
+          }, 1000);
+        } else {
+          // Show error message
+          btn.classList.remove('loading');
+          showError(data.error || 'Invalid email or password');
+        }
+      } catch (error) {
+        console.error('Login error:', error);
         btn.classList.remove('loading');
-        
-        // Show success message
-        showNotification('Login successful! Redirecting...', 'success');
-        
-        // Redirect to dashboard
-        setTimeout(() => {
-          window.location.href = '/jeet';
-        }, 1500);
-      }, 1500);
+        showError('Network error. Please try again.');
+      }
     });
 
     // ==================== GOOGLE LOGIN ====================
     function googleLogin() {
       showNotification('Google login coming soon!', 'info');
-    }
-
-    // ==================== NOTIFICATION ====================
-    function showNotification(message, type = 'success') {
-      const notification = document.createElement('div');
-      notification.className = `notification ${type}`;
-      notification.innerHTML = `
-        <div class="notification-content">
-          <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-info-circle'}"></i>
-          <span>${message}</span>
-        </div>
-      `;
-      document.body.appendChild(notification);
-      
-      setTimeout(() => notification.classList.add('show'), 100);
-      setTimeout(() => {
-        notification.classList.remove('show');
-        setTimeout(() => notification.remove(), 500);
-      }, 3000);
     }
 
     // ==================== UPDATE STATS ====================
