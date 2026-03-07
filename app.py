@@ -253,7 +253,11 @@ def login():
                 "first_name": users[email]["first_name"],
                 "last_name": users[email]["last_name"]
             }
-            return jsonify({"success": True, "redirect": "/dashboard"})
+            # Set session to permanent if remember me is checked
+            if remember:
+                session.permanent = True
+            # Redirect to dashboard (jeet.html)
+            return jsonify({"success": True, "redirect": "/jeet"})
         else:
             return jsonify({"success": False, "error": "Invalid email or password"}), 401
     
@@ -292,7 +296,8 @@ def signup():
             "last_name": last_name
         }
         
-        return jsonify({"success": True, "redirect": "/dashboard"})
+        # Redirect to dashboard (jeet.html)
+        return jsonify({"success": True, "redirect": "/jeet"})
     
     # GET request - show signup page
     return render_template("signup.html")
@@ -319,13 +324,13 @@ def login_required(f):
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    """Main dashboard (jeet.html)"""
-    return render_template("jeet.html", user=session.get("user"))
+    """Main dashboard - redirect to jeet.html"""
+    return redirect(url_for('jeet'))
 
 @app.route("/jeet")
 @login_required
 def jeet():
-    """Alias for dashboard"""
+    """Main dashboard page"""
     return render_template("jeet.html", user=session.get("user"))
 
 @app.route("/portfolio")
@@ -1178,19 +1183,19 @@ if __name__ == "__main__":
     print("  GET  /signup        - Signup page")
     print("  POST /signup        - Signup API")
     print("  GET  /logout        - Logout")
-    print("  GET  /dashboard     - Main dashboard (requires auth)")
-    print("  GET  /jeet          - Alias for dashboard")
-    print("  GET  /portfolio     - Portfolio page")
-    print("  GET  /mystock       - My Stock page")
-    print("  GET  /deposit       - Deposit page")
-    print("  GET  /insight       - Insight page")
-    print("  GET  /prediction    - Prediction page")
-    print("  GET  /news          - News page")
-    print("  GET  /videos        - Videos page")
-    print("  GET  /superstars    - Superstars page")
-    print("  GET  /alerts        - Alerts page")
-    print("  GET  /help          - Help page")
-    print("  GET  /profile       - Profile page")
+    print("  GET  /dashboard     - Redirects to /jeet (requires auth)")
+    print("  GET  /jeet          - Main Dashboard (requires auth)")
+    print("  GET  /portfolio     - Portfolio page (requires auth)")
+    print("  GET  /mystock       - My Stock page (requires auth)")
+    print("  GET  /deposit       - Deposit page (requires auth)")
+    print("  GET  /insight       - Insight page (requires auth)")
+    print("  GET  /prediction    - Prediction page (requires auth)")
+    print("  GET  /news          - News page (requires auth)")
+    print("  GET  /videos        - Videos page (requires auth)")
+    print("  GET  /superstars    - Superstars page (requires auth)")
+    print("  GET  /alerts        - Alerts page (requires auth)")
+    print("  GET  /help          - Help page (requires auth)")
+    print("  GET  /profile       - Profile page (requires auth)")
     print("\nAPI Endpoints (require auth):")
     print("  GET  /api/live-quote/<symbol> - Get REAL-TIME stock data")
     print("  POST /api/batch-quote - Get multiple stock quotes")
