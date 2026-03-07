@@ -41,7 +41,7 @@ else:
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # Use the correct model name for google.genai client (without "models/" prefix)
-GEMINI_MODEL = "gemini-1.5-flash"  # ✅ CORRECT for google.genai client
+GEMINI_MODEL = "models/gemini-pro"  # ✅ CORRECT for google.genai client
 
 print(f"✓ Using Gemini model: {GEMINI_MODEL}")
 
