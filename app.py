@@ -219,9 +219,18 @@ else:
 # ---------------------------------
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+
+# ============================================
+# SESSION CONFIGURATION - CRITICAL FOR DEPLOYMENT
+# ============================================
 app.secret_key = os.urandom(24)  # For session management
-app.permanent_session_lifetime = timedelta(days=7)  # Session lifetime
-CORS(app)
+app.config['SESSION_COOKIE_SECURE'] = True  # Send cookies only over HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=7)
+
+CORS(app, supports_credentials=True, origins=["https://stockmarketagentic.onrender.com", "http://localhost:5000"])
 
 HISTORY_DIR = "history"
 os.makedirs(HISTORY_DIR, exist_ok=True)
@@ -562,6 +571,28 @@ def generate_fallback_predictions(stock_data):
     }
 
 # ============================================
+# UPDATED LOGIN_REQUIRED DECORATOR FOR API
+# ============================================
+
+def login_required(f):
+    """Decorator to require login for protected routes - handles API and web separately"""
+    def decorated_function(*args, **kwargs):
+        if "user" not in session:
+            # For API requests, return JSON error
+            if request.path.startswith('/api/'):
+                return jsonify({
+                    "error": "Authentication required", 
+                    "redirect": "/login",
+                    "message": "Please login to access this resource"
+                }), 401
+            # For regular requests, redirect to login
+            flash("Please login to access this page", "warning")
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
+    return decorated_function
+
+# ============================================
 # AUTHENTICATION ROUTES
 # ============================================
 
@@ -609,7 +640,10 @@ def login():
             }
             
             if request.is_json:
-                return jsonify({"success": True, "redirect": "/jeet"})
+                response = jsonify({"success": True, "redirect": "/jeet"})
+                # Ensure cookies are set for cross-origin requests
+                response.headers.add('Access-Control-Allow-Credentials', 'true')
+                return response
             else:
                 flash(f"Welcome back, {users[email]['first_name']}!", "success")
                 return redirect(url_for('jeet'))
@@ -692,7 +726,9 @@ def signup():
         }
         
         if request.is_json:
-            return jsonify({"success": True, "redirect": "/jeet"})
+            response = jsonify({"success": True, "redirect": "/jeet"})
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            return response
         else:
             flash(f"Welcome to AlphaAnalytics, {first_name}!", "success")
             return redirect(url_for('jeet'))
@@ -710,16 +746,6 @@ def logout():
 # ============================================
 # PROTECTED ROUTES (Require Authentication)
 # ============================================
-
-def login_required(f):
-    """Decorator to require login for protected routes"""
-    def decorated_function(*args, **kwargs):
-        if "user" not in session:
-            flash("Please login to access this page", "warning")
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    decorated_function.__name__ = f.__name__
-    return decorated_function
 
 @app.route("/dashboard")
 @login_required
@@ -824,7 +850,7 @@ def live_quote(symbol):
         if not stock_data:
             return jsonify({"error": "Stock data unavailable"}), 404
         
-        return jsonify({
+        response = jsonify({
             "symbol": symbol,
             "current_price": stock_data["current_price"],
             "change": stock_data["change"],
@@ -841,6 +867,8 @@ def live_quote(symbol):
             "pe_ratio": stock_data["pe_ratio"],
             "timestamp": stock_data["timestamp"]
         })
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
         
     except Exception as e:
         print(f"Live quote error: {e}")
@@ -874,10 +902,12 @@ def batch_quote():
                         "volume": stock_data["volume"]
                     }
         
-        return jsonify({
+        response = jsonify({
             "quotes": results,
             "timestamp": datetime.now().isoformat()
         })
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -939,7 +969,7 @@ def predict():
             print(f"Gemini analysis error: {e}")
             # Fall back to the prediction summary
 
-    response = {
+    response_data = {
         "symbol": symbol,
         "prediction_date": get_next_trading_day(),
         "current_price": stock_data["current_price"],
@@ -972,18 +1002,23 @@ def predict():
     # Only try to send email if credentials exist
     if EMAIL_SENDER and EMAIL_PASSWORD:
         try:
-            send_prediction_email(
-                EMAIL_SENDER,
-                symbol,
-                predictions,
-                ai_analysis
+            # Send email asynchronously to avoid timeout
+            import threading
+            email_thread = threading.Thread(
+                target=send_prediction_email,
+                args=(EMAIL_SENDER, symbol, predictions, ai_analysis)
             )
+            email_thread.daemon = True
+            email_thread.start()
+            print("📧 Email sending started in background")
         except Exception as e:
             print(f"Email error: {e}")
     else:
         print("Email not sent: Missing EMAIL_SENDER or EMAIL_PASSWORD")
-        
-    return jsonify(response)
+    
+    response = jsonify(response_data)
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 @app.route("/api/market-summary")
 @login_required
@@ -1036,11 +1071,13 @@ def market_summary():
         except Exception as e:
             print(f"Market summary Gemini error: {e}")
 
-    return jsonify({
+    response = jsonify({
         "market_summary": text,
         "market_data": data,
         "timestamp": datetime.now().isoformat()
     })
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 @app.route("/api/agentic-analyze", methods=["POST"])
 @login_required
@@ -1064,7 +1101,9 @@ def agentic_analyze():
         
         result = agentic_stock_analysis(symbol, user_goal)
         
-        return jsonify(result)
+        response = jsonify(result)
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1096,11 +1135,13 @@ def get_agentic_tools():
         }
     ]
     
-    return jsonify({
+    response = jsonify({
         "tools": tools,
         "version": "1.0",
         "description": "Agentic AI Trading Assistant Tools"
     })
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 @app.route("/api/health")
 def health():
@@ -1131,7 +1172,7 @@ def health():
     })
 
 # ============================================
-# DEBUG ENDPOINT - ADD THIS NEW ENDPOINT
+# DEBUG ENDPOINTS
 # ============================================
 
 @app.route("/api/debug", methods=["GET"])
@@ -1169,7 +1210,9 @@ def debug_info():
         debug_info["error"] = str(e)
         debug_info["traceback"] = traceback.format_exc()
     
-    return jsonify(debug_info)
+    response = jsonify(debug_info)
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 @app.route("/api/debug-simple", methods=["GET"])
 def debug_simple():
@@ -1463,14 +1506,16 @@ def agentic_stock_analysis(symbol, user_goal):
         
         if EMAIL_SENDER and EMAIL_PASSWORD and ("email" in user_goal.lower() or "mail" in user_goal.lower() or "notif" in user_goal.lower()):
             try:
-                send_prediction_email(
-                    EMAIL_SENDER,
-                    symbol,
-                    predictions,
-                    comprehensive_analysis
+                # Send email asynchronously
+                import threading
+                email_thread = threading.Thread(
+                    target=send_prediction_email,
+                    args=(EMAIL_SENDER, symbol, predictions, comprehensive_analysis)
                 )
+                email_thread.daemon = True
+                email_thread.start()
                 result["email_sent"] = True
-                print(f"✓ Email notification sent for {symbol}")
+                print(f"✓ Email notification started for {symbol}")
             except Exception as e:
                 print(f"✗ Email error: {e}")
                 result["email_sent"] = False
