@@ -1,0 +1,19 @@
+# render.yaml (simplified version)
+services:
+  - type: web
+    name: stockmarketagentic
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: EMAIL_SENDER
+        value: razilchristian@gmail.com
+      - key: EMAIL_PASSWORD
+        sync: false
