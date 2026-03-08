@@ -7,6 +7,7 @@ import pandas as pd
 import random
 import json
 import re
+import traceback
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, render_template, redirect, url_for, session, flash
 from flask_cors import CORS
@@ -1035,6 +1036,44 @@ def health():
         ],
         "users_registered": len(users)
     })
+
+# ============================================
+# DEBUG ENDPOINT - ADD THIS NEW ENDPOINT
+# ============================================
+
+@app.route("/api/debug", methods=["GET"])
+def debug_info():
+    """Debug endpoint to check configuration and test predictor"""
+    debug_info = {
+        "status": "debug",
+        "python_path": sys.path,
+        "current_directory": os.getcwd(),
+        "files_in_root": os.listdir('.'),
+        "models_folder_exists": os.path.exists('models'),
+        "predictor_module": False,
+        "predictor_test": None,
+        "error": None
+    }
+    
+    # Test if models folder exists and list its contents
+    if os.path.exists('models'):
+        debug_info["models_files"] = os.listdir('models')
+    
+    # Test predictor import
+    try:
+        from models.predictor import predict_price
+        debug_info["predictor_module"] = True
+        
+        # Test with simple data
+        test_data = [100, 101, 102, 101, 103]
+        test_result = predict_price(test_data, symbol="DEBUG")
+        debug_info["predictor_test"] = test_result
+    except Exception as e:
+        debug_info["predictor_module"] = False
+        debug_info["error"] = str(e)
+        debug_info["traceback"] = traceback.format_exc()
+    
+    return jsonify(debug_info)
 
 # ============================================
 # RISK ANALYSIS FUNCTIONS
