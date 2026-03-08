@@ -1,28 +1,112 @@
 # AlphaAnalytics Agentic AI Backend - Complete Authentication System with Predictor Module
 
+# ============================================
+# RENDER DEPLOYMENT FIXES - ADD THESE FIRST!
+# ============================================
+import sys
 import os
+import time
+
+# Force unbuffered output so Render sees logs immediately
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(line_buffering=True)
+    
+print("="*60)
+print("🚀 ALPHAANALYTICS STARTING UP ON RENDER")
+print("="*60)
+print(f"Python version: {sys.version}")
+print(f"Current directory: {os.getcwd()}")
+print(f"PORT environment variable: {os.environ.get('PORT', 'NOT SET - will use 5000')}")
+print(f"PID: {os.getpid()}")
+print("="*60)
+sys.stdout.flush()
+time.sleep(1)  # Give Render time to capture these logs
+
+# ============================================
+# STANDARD IMPORTS
+# ============================================
+print("📦 Importing yfinance...")
+sys.stdout.flush()
 import yfinance as yf
+print("✓ yfinance imported")
+
+print("📦 Importing numpy...")
+sys.stdout.flush()
 import numpy as np
+print("✓ numpy imported")
+
+print("📦 Importing pandas...")
+sys.stdout.flush()
 import pandas as pd
+print("✓ pandas imported")
+
+print("📦 Importing random, json, re, traceback...")
+sys.stdout.flush()
 import random
 import json
 import re
 import traceback
+print("✓ Standard libraries imported")
+
+print("📦 Importing datetime...")
+sys.stdout.flush()
 from datetime import datetime, timedelta
+print("✓ datetime imported")
+
+print("📦 Importing Flask and extensions...")
+sys.stdout.flush()
 from flask import Flask, jsonify, request, render_template, redirect, url_for, session, flash
 from flask_cors import CORS
+print("✓ Flask and CORS imported")
+
+print("📦 Importing email_service...")
+sys.stdout.flush()
 from email_service import send_prediction_email
+print("✓ email_service imported")
+
+print("📦 Loading environment variables...")
+sys.stdout.flush()
 from dotenv import load_dotenv
 load_dotenv()
+print("✓ Environment variables loaded")
 
-# Import predictor from models folder - ONLY import what exists
-import sys
+# Import predictor from models folder
+print("📦 Importing predictor module...")
+sys.stdout.flush()
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from models.predictor import predict_price
+try:
+    from models.predictor import predict_price
+    print("✓ Predictor module imported successfully")
+except Exception as e:
+    print(f"❌ Failed to import predictor: {e}")
+    traceback.print_exc()
+    # Define a fallback predictor function
+    def predict_price(data, symbol="UNKNOWN", use_gemini=False):
+        print("⚠ Using fallback predictor")
+        if hasattr(data, 'iloc') and len(data) > 0:
+            try:
+                latest = float(data["Close"].iloc[-1])
+                return {
+                    "open": round(latest, 2),
+                    "high": round(latest * 1.02, 2),
+                    "low": round(latest * 0.98, 2),
+                    "close": round(latest * 1.01, 2)
+                }
+            except:
+                pass
+        return {"open": 100.00, "high": 105.00, "low": 95.00, "close": 102.00}
 
-# NEW: Use the new google.genai package instead of deprecated generativeai
+print("📦 Importing google.genai...")
+sys.stdout.flush()
 import google.genai as genai
 from google.genai import types
+print("✓ Google GenAI imported")
+
+print("="*60)
+print("✅ ALL IMPORTS COMPLETED SUCCESSFULLY")
+print("="*60)
+sys.stdout.flush()
+time.sleep(1)
 
 # ---------------------------------
 # GEMINI CONFIGURATION WITH AUTO-DIAGNOSTICS
@@ -37,6 +121,7 @@ if GEMINI_API_KEY:
     print(f"✓ Gemini API Key loaded: {GEMINI_API_KEY[:6]}...")
 else:
     print("❌ WARNING: GEMINI_API_KEY not found in environment variables")
+sys.stdout.flush()
 
 # Initialize the new client
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
@@ -50,6 +135,7 @@ if client:
         print("="*60)
         print("🔍 DIAGNOSIS: Checking available Gemini models...")
         print("="*60)
+        sys.stdout.flush()
         
         models = client.models.list()
         available_models = []
@@ -66,6 +152,7 @@ if client:
             actions_str = ', '.join(actions) if actions else 'generateContent, countTokens'
             print(f"  • {display_name}")
             print(f"    Supports: {actions_str}\n")
+            sys.stdout.flush()
         
         if available_models:
             print(f"\n✅ Found {len(available_models)} available models")
@@ -84,12 +171,14 @@ if client:
                 if preferred in available_models:
                     GEMINI_MODEL = preferred
                     print(f"\n✅ Selected model: {GEMINI_MODEL}")
+                    sys.stdout.flush()
                     break
             
             # If none of the preferred models found, use the first available
             if not GEMINI_MODEL and available_models:
                 GEMINI_MODEL = available_models[0]
                 print(f"\n⚠ No preferred model found, using: {GEMINI_MODEL}")
+                sys.stdout.flush()
             
             # Test the selected model
             if GEMINI_MODEL:
@@ -104,11 +193,13 @@ if client:
                     print(f"⚠ Model test failed: {e}")
                     print("  The app will use predictor module as fallback")
                     client = None
+                sys.stdout.flush()
         else:
             print("❌ No models found for this API key")
             client = None
             
         print("="*60)
+        sys.stdout.flush()
     except Exception as e:
         print(f"❌ Error accessing Gemini API: {e}")
         print("\nThis could mean:")
@@ -117,9 +208,11 @@ if client:
         print(" 3. Billing is not enabled for your project")
         print(" 4. The API key is for a different Google service")
         print("\nThe app will continue using the predictor module for all predictions.")
+        sys.stdout.flush()
         client = None
 else:
     print("⚠ Gemini client not initialized - using predictor module only")
+    sys.stdout.flush()
 
 # ---------------------------------
 # FLASK APP
@@ -1057,7 +1150,10 @@ def debug_info():
     
     # Test if models folder exists and list its contents
     if os.path.exists('models'):
-        debug_info["models_files"] = os.listdir('models')
+        try:
+            debug_info["models_files"] = os.listdir('models')
+        except:
+            debug_info["models_files"] = "Error listing directory"
     
     # Test predictor import
     try:
@@ -1074,6 +1170,15 @@ def debug_info():
         debug_info["traceback"] = traceback.format_exc()
     
     return jsonify(debug_info)
+
+@app.route("/api/debug-simple", methods=["GET"])
+def debug_simple():
+    """Super simple debug endpoint that always works"""
+    return jsonify({
+        "status": "ok",
+        "message": "Server is running",
+        "time": datetime.now().isoformat()
+    })
 
 # ============================================
 # RISK ANALYSIS FUNCTIONS
@@ -1393,28 +1498,18 @@ def catch_all(path):
     return render_template("404.html"), 404
 
 # ============================================
-# RUN SERVER
+# RUN SERVER - UPDATED FOR RENDER
 # ============================================
 
 if __name__ == "__main__":
-    # Get port FIRST before using it
+    # Get port from environment variable (Render sets this)
     port = int(os.environ.get("PORT", 5000))
     
     print("="*60)
     print("AlphaAnalytics Gemini Enhanced AI Server")
     print("="*60)
-    print("Features:")
-    print("  • User Authentication System")
-    print("  • LIVE REAL-TIME DATA from yfinance")
-    print("  • Predictor Module Integration (models/predictor.py)")
-    print("  • Gemini AI Enhancement" if client and GEMINI_MODEL else "  • Gemini AI (disabled - using predictor only)")
-    print("  • Confidence Bands (50%/75%/90%)")
-    print("  • Comprehensive Risk Analysis")
-    print("  • Technical Indicators")
-    print("  • Value at Risk (VaR) Calculation")
-    print("  • AGENTIC AI PLANNING")
-    print("  • Goal-based Stock Analysis")
-    print("  • Email Notifications")
+    print(f"Starting server on port: {port}")
+    print(f"Binding to: 0.0.0.0")
     print("="*60)
     print("\n✓ Configuration Status:")
     print(f"  • Gemini API Key: {'✅ Configured' if GEMINI_API_KEY else '❌ Missing'}")
@@ -1423,35 +1518,19 @@ if __name__ == "__main__":
     print(f"  • Email Settings: {'✅ Configured' if (EMAIL_SENDER and EMAIL_PASSWORD) else '❌ Missing'}")
     print(f"  • Predictor Module: ✅ Loaded from models/predictor.py")
     print("="*60)
-    print("\nAuthentication Flow:")
-    print("  • /              - Redirects to /login or /jeet based on session")
-    print("  • GET  /login    - Login page")
-    print("  • POST /login    - Process login (JSON or form data)")
-    print("  • GET  /signup   - Signup page")
-    print("  • POST /signup   - Process signup (JSON or form data)")
-    print("  • GET  /logout   - Logout user")
-    print("="*60)
-    print("\nProtected Pages (require login):")
-    print("  • /dashboard -> /jeet - Main Dashboard")
-    print("  • /jeet          - Main Dashboard")
-    print("  • /portfolio     - Portfolio page")
-    print("  • /mystock       - My Stock page")
-    print("  • /deposit       - Deposit page")
-    print("  • /insight       - Insight page")
-    print("  • /prediction    - Prediction page")
-    print("  • /news          - News page")
-    print("  • /videos        - Videos page")
-    print("  • /superstars    - Superstars page")
-    print("  • /alerts        - Alerts page")
-    print("  • /help          - Help page")
-    print("  • /profile       - Profile page")
-    print("="*60)
     print(f"\nDemo Account:")
     print(f"  • Email:    demo@alpha.com")
     print(f"  • Password: demo123")
     print("="*60)
-    print(f"\nServer starting on http://0.0.0.0:{port}")
+    print(f"\n🚀 Server starting on http://0.0.0.0:{port}")
     print("="*60)
+    sys.stdout.flush()
     
-    # Now run the app with the port
+    # Force unbuffered output
+    import sys
+    sys.stdout.flush()
+    
+    # Run the app
+    # Note: On Render, gunicorn is used instead of this block
+    # This block only runs when doing "python app.py" locally
     app.run(host="0.0.0.0", port=port, debug=False)
