@@ -16,7 +16,7 @@ print("🚀 ALPHAANALYTICS STARTING UP ON RENDER")
 print("="*60)
 print(f"Python version: {sys.version}")
 print(f"Current directory: {os.getcwd()}")
-print(f"PORT environment variable: {os.environ.get('PORT', 'NOT SET - will use 5000')}")
+print(f"PORT environment variable: {os.environ.get('PORT', 'NOT SET - will use 10000')}")
 print(f"PID: {os.getpid()}")
 print("="*60)
 sys.stdout.flush()
@@ -61,8 +61,14 @@ print("✓ Flask and CORS imported")
 
 print("📦 Importing email_service...")
 sys.stdout.flush()
-from email_service import send_prediction_email
-print("✓ email_service imported")
+try:
+    from email_service import send_prediction_email
+    print("✓ email_service imported")
+except ImportError:
+    print("⚠ email_service not found, creating fallback")
+    def send_prediction_email(*args, **kwargs):
+        print("Email service not available")
+        return None
 
 print("📦 Loading environment variables...")
 sys.stdout.flush()
@@ -98,9 +104,15 @@ except Exception as e:
 
 print("📦 Importing google.genai...")
 sys.stdout.flush()
-import google.genai as genai
-from google.genai import types
-print("✓ Google GenAI imported")
+try:
+    import google.genai as genai
+    from google.genai import types
+    print("✓ Google GenAI imported")
+    GENAI_AVAILABLE = True
+except ImportError:
+    print("⚠ Google GenAI not available")
+    GENAI_AVAILABLE = False
+    genai = None
 
 print("="*60)
 print("✅ ALL IMPORTS COMPLETED SUCCESSFULLY")
@@ -124,7 +136,7 @@ else:
 sys.stdout.flush()
 
 # Initialize the new client
-client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY and GENAI_AVAILABLE else None
 GEMINI_MODEL = None  # Will be set after checking available models
 
 # ============================================
@@ -223,14 +235,18 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 # ============================================
 # SESSION CONFIGURATION - CRITICAL FOR DEPLOYMENT
 # ============================================
-app.secret_key = os.urandom(24)  # For session management
+app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())  # Use env var or generate
 app.config['SESSION_COOKIE_SECURE'] = True  # Send cookies only over HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=7)
 
-CORS(app, supports_credentials=True, origins=["https://stockmarketagentic.onrender.com", "http://localhost:5000"])
+CORS(app, supports_credentials=True, origins=[
+    "https://stockmarketagentic.onrender.com", 
+    "http://localhost:5000",
+    "http://127.0.0.1:5000"
+])
 
 HISTORY_DIR = "history"
 os.makedirs(HISTORY_DIR, exist_ok=True)
@@ -1548,13 +1564,14 @@ def catch_all(path):
 
 if __name__ == "__main__":
     # Get port from environment variable (Render sets this)
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 10000))
+    host = "0.0.0.0"
     
     print("="*60)
     print("AlphaAnalytics Gemini Enhanced AI Server")
     print("="*60)
     print(f"Starting server on port: {port}")
-    print(f"Binding to: 0.0.0.0")
+    print(f"Binding to: {host}")
     print("="*60)
     print("\n✓ Configuration Status:")
     print(f"  • Gemini API Key: {'✅ Configured' if GEMINI_API_KEY else '❌ Missing'}")
@@ -1567,15 +1584,12 @@ if __name__ == "__main__":
     print(f"  • Email:    demo@alpha.com")
     print(f"  • Password: demo123")
     print("="*60)
-    print(f"\n🚀 Server starting on http://0.0.0.0:{port}")
+    print(f"\n🚀 Server starting on http://{host}:{port}")
     print("="*60)
     sys.stdout.flush()
     
-    # Force unbuffered output
-    import sys
-    sys.stdout.flush()
-    
-    # Run the app
-    # Note: On Render, gunicorn is used instead of this block
+    # IMPORTANT: For Render, we don't call app.run() directly
+    # Gunicorn will handle this
     # This block only runs when doing "python app.py" locally
-    app.run(host="0.0.0.0", port=port, debug=False)
+    if __name__ == "__main__":
+        app.run(host=host, port=port, debug=False)
