@@ -16,13 +16,18 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER", "razilchristian@gmail.com")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")  # New SendGrid API key
 
-# Debug: Check if API key is loaded
+# Debug: Check if API keys are loaded
 if GEMINI_API_KEY:
     print(f"✓ Gemini API Key loaded: {GEMINI_API_KEY[:6]}...")
 else:
     print("❌ WARNING: GEMINI_API_KEY not found in environment variables")
+
+if SENDGRID_API_KEY:
+    print(f"✓ SendGrid API Key loaded: {SENDGRID_API_KEY[:6]}...")
+else:
+    print("❌ WARNING: SENDGRID_API_KEY not found in environment variables - Email notifications will be disabled")
 
 # Initialize the new client
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
@@ -115,7 +120,7 @@ else:
 __all__ = [
     'GEMINI_API_KEY',
     'EMAIL_SENDER',
-    'EMAIL_PASSWORD',
+    'SENDGRID_API_KEY',  # Added SendGrid API key
     'client',
     'GEMINI_MODEL'
 ]
