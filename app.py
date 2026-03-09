@@ -20,7 +20,7 @@ print(f"PORT environment variable: {os.environ.get('PORT', 'NOT SET - will use 1
 print(f"PID: {os.getpid()}")
 print("="*60)
 sys.stdout.flush()
-time.sleep(1)  # Give Render time to capture these logs
+time.sleep(1)
 
 # ============================================
 # STANDARD IMPORTS
@@ -63,7 +63,7 @@ print("📦 Importing email_service...")
 sys.stdout.flush()
 try:
     from email_service import send_prediction_email
-    print("✓ email_service imported")
+    print("✓ email_service imported (SendGrid)")
 except ImportError:
     print("⚠ email_service not found, creating fallback")
     def send_prediction_email(*args, **kwargs):
@@ -126,18 +126,23 @@ time.sleep(1)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER", "razilchristian@gmail.com")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")  # New SendGrid API key
 
 # Debug: Check if API key is loaded
 if GEMINI_API_KEY:
     print(f"✓ Gemini API Key loaded: {GEMINI_API_KEY[:6]}...")
 else:
     print("❌ WARNING: GEMINI_API_KEY not found in environment variables")
+
+if SENDGRID_API_KEY:
+    print(f"✓ SendGrid API Key loaded: {SENDGRID_API_KEY[:6]}...")
+else:
+    print("❌ WARNING: SENDGRID_API_KEY not found in environment variables")
 sys.stdout.flush()
 
 # Initialize the new client
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY and GENAI_AVAILABLE else None
-GEMINI_MODEL = None  # Will be set after checking available models
+GEMINI_MODEL = None
 
 # ============================================
 # AUTO-DIAGNOSTIC: Check available Gemini models
@@ -155,11 +160,9 @@ if client:
         print("Models available to your API key:\n")
         for model in models:
             model_name = model.name
-            # Remove 'models/' prefix for cleaner display
             display_name = model_name.replace('models/', '')
             available_models.append(display_name)
             
-            # Show which methods each model supports
             actions = getattr(model, 'supported_actions', [])
             actions_str = ', '.join(actions) if actions else 'generateContent, countTokens'
             print(f"  • {display_name}")
@@ -169,7 +172,6 @@ if client:
         if available_models:
             print(f"\n✅ Found {len(available_models)} available models")
             
-            # Try to find a suitable model in order of preference
             preferred_models = [
                 "gemini-2.0-flash-exp",
                 "gemini-2.0-flash",
@@ -186,13 +188,11 @@ if client:
                     sys.stdout.flush()
                     break
             
-            # If none of the preferred models found, use the first available
             if not GEMINI_MODEL and available_models:
                 GEMINI_MODEL = available_models[0]
                 print(f"\n⚠ No preferred model found, using: {GEMINI_MODEL}")
                 sys.stdout.flush()
             
-            # Test the selected model
             if GEMINI_MODEL:
                 try:
                     test_response = client.models.generate_content(
@@ -214,11 +214,6 @@ if client:
         sys.stdout.flush()
     except Exception as e:
         print(f"❌ Error accessing Gemini API: {e}")
-        print("\nThis could mean:")
-        print(" 1. Your API key is invalid or expired")
-        print(" 2. The API key doesn't have Gemini API enabled")
-        print(" 3. Billing is not enabled for your project")
-        print(" 4. The API key is for a different Google service")
         print("\nThe app will continue using the predictor module for all predictions.")
         sys.stdout.flush()
         client = None
@@ -235,10 +230,10 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 # ============================================
 # SESSION CONFIGURATION - CRITICAL FOR DEPLOYMENT
 # ============================================
-app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())  # Use env var or generate
-app.config['SESSION_COOKIE_SECURE'] = True  # Send cookies only over HTTPS
-app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=7)
 
@@ -251,12 +246,11 @@ CORS(app, supports_credentials=True, origins=[
 HISTORY_DIR = "history"
 os.makedirs(HISTORY_DIR, exist_ok=True)
 
-# Cache for stock data to reduce API calls - INCREASED CACHE DURATION to prevent Yahoo blocking
+# Cache for stock data to reduce API calls
 stock_cache = {}
-CACHE_DURATION = 3600  # INCREASED from 600 to 3600 seconds (1 hour) to prevent Yahoo blocking
+CACHE_DURATION = 3600  # 1 hour cache
 
-# Simple user database (in production, use real database)
-# This will persist during runtime, but will reset when server restarts
+# Simple user database
 users = {
     "demo@alpha.com": {
         "password": "demo123",
@@ -268,11 +262,10 @@ users = {
 
 # Rate limiting for API calls
 api_call_counts = {}
-RATE_LIMIT = 10  # Max calls per minute
-RATE_WINDOW = 60  # seconds
+RATE_LIMIT = 10
+RATE_WINDOW = 60
 
 def check_rate_limit(client_ip):
-    """Simple rate limiting to prevent API abuse"""
     now = datetime.now()
     if client_ip in api_call_counts:
         count, timestamp = api_call_counts[client_ip]
@@ -296,93 +289,65 @@ def validate_stock_symbol(symbol):
 
 def get_next_trading_day():
     today = datetime.now()
-    if today.weekday() == 4:  # Friday
+    if today.weekday() == 4:
         return (today + timedelta(days=3)).strftime('%Y-%m-%d')
-    if today.weekday() == 5:  # Saturday
+    if today.weekday() == 5:
         return (today + timedelta(days=2)).strftime('%Y-%m-%d')
-    if today.weekday() == 6:  # Sunday
+    if today.weekday() == 6:
         return (today + timedelta(days=1)).strftime('%Y-%m-%d')
     return (today + timedelta(days=1)).strftime('%Y-%m-%d')
 
 def calculate_technical_indicators(data):
-    """Calculate technical indicators for better analysis"""
     df = data.copy()
     
-    # Moving Averages
     df['MA5'] = df['Close'].rolling(window=5).mean()
     df['MA10'] = df['Close'].rolling(window=10).mean()
     df['MA20'] = df['Close'].rolling(window=20).mean()
     df['MA50'] = df['Close'].rolling(window=50).mean()
     
-    # RSI
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
     
-    # Bollinger Bands
     df['BB_middle'] = df['Close'].rolling(window=20).mean()
     bb_std = df['Close'].rolling(window=20).std()
     df['BB_upper'] = df['BB_middle'] + (bb_std * 2)
     df['BB_lower'] = df['BB_middle'] - (bb_std * 2)
     
-    # MACD
     exp1 = df['Close'].ewm(span=12, adjust=False).mean()
     exp2 = df['Close'].ewm(span=26, adjust=False).mean()
     df['MACD'] = exp1 - exp2
     df['Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
     
-    # Volume indicators
     df['Volume_MA'] = df['Volume'].rolling(window=20).mean()
     df['Volume_ratio'] = df['Volume'] / df['Volume_MA']
-    
-    # Price momentum
     df['Momentum'] = df['Close'].pct_change(periods=5) * 100
-    df['Price_change'] = df['Close'].pct_change() * 100
     
     return df
 
 # ---------------------------------
-# ENHANCED STOCK DATA FETCH WITH CACHING - WITH RETRY LOGIC FOR RATE LIMITING
+# STOCK DATA FETCH WITH CACHING
 # ---------------------------------
 
 def get_stock_data(symbol, force_refresh=False):
-    """Fetch stock data with caching to reduce API calls - with retry logic for rate limiting"""
-    
-    # Check cache first - ALWAYS use cache unless force_refresh is True
     if not force_refresh and symbol in stock_cache:
         cache_time, cache_data = stock_cache[symbol]
         if (datetime.now() - cache_time).seconds < CACHE_DURATION:
-            print(f"✅ Using cached data for {symbol} (cache age: {(datetime.now() - cache_time).seconds} seconds)")
-            return cache_data
-        else:
-            print(f"🔄 Cache expired for {symbol} (age: {(datetime.now() - cache_time).seconds} seconds)")
-    
-    # If force_refresh is True, we still check if cache is recent enough to avoid rate limiting
-    if force_refresh and symbol in stock_cache:
-        cache_time, cache_data = stock_cache[symbol]
-        # Even with force_refresh, don't call Yahoo if cache is less than 5 minutes old
-        if (datetime.now() - cache_time).seconds < 300:  # 5 minutes minimum between refreshes
-            print(f"⚠️ Force refresh requested but using recent cache for {symbol} to avoid rate limiting")
+            print(f"✅ Using cached data for {symbol} (age: {(datetime.now() - cache_time).seconds}s)")
             return cache_data
     
     try:
-        print(f"📡 Fetching fresh data for {symbol} from yfinance...")
-        
-        # Add a small delay between requests to avoid rate limiting
-        time.sleep(1)  # 1 second delay between different stock fetches
+        print(f"📡 Fetching fresh data for {symbol}...")
+        time.sleep(1)
         
         stock = yf.Ticker(symbol)
-        
-        # Fetch historical data for analysis
         data = stock.history(period="1y")
         
         if data.empty:
-            print(f"⚠️ No data returned for {symbol}")
             return None
         
-        # Calculate technical indicators
         df = calculate_technical_indicators(data)
         
         current_price = float(data["Close"].iloc[-1])
@@ -390,43 +355,34 @@ def get_stock_data(symbol, force_refresh=False):
         change = current_price - prev_close
         change_percent = (change / prev_close) * 100 if prev_close != 0 else 0
         
-        # Advanced volatility metrics
         daily_returns = data["Close"].pct_change().dropna()
         volatility = float(daily_returns.std() * np.sqrt(252) * 100) if len(daily_returns) > 0 else 0
         
-        # Calculate Value at Risk (VaR)
         var_95 = np.percentile(daily_returns, 5) * 100 if len(daily_returns) > 0 else 0
         var_99 = np.percentile(daily_returns, 1) * 100 if len(daily_returns) > 0 else 0
         
-        # Calculate Sharpe ratio (assuming 2% risk-free rate)
         if len(daily_returns) > 0 and daily_returns.std() > 0:
             excess_returns = daily_returns - 0.02/252
             sharpe_ratio = float(np.sqrt(252) * excess_returns.mean() / daily_returns.std())
         else:
             sharpe_ratio = 0
         
-        # Recent price trend
         recent_prices = data["Close"].tail(10).tolist()
         
-        # Volume analysis
         current_volume = int(data["Volume"].iloc[-1]) if not pd.isna(data["Volume"].iloc[-1]) else 0
         avg_volume = int(data["Volume"].tail(30).mean()) if len(data) >= 30 else current_volume
         volume_trend = "HIGH" if current_volume > avg_volume * 1.5 else "NORMAL" if current_volume > avg_volume * 0.8 else "LOW"
         
-        # Support and Resistance levels
         recent_high = float(data["High"].tail(20).max()) if len(data) >= 20 else current_price * 1.05
         recent_low = float(data["Low"].tail(20).min()) if len(data) >= 20 else current_price * 0.95
         
-        # Get current RSI, MACD
         current_rsi = float(df['RSI'].iloc[-1]) if not pd.isna(df['RSI'].iloc[-1]) else 50
         current_macd = float(df['MACD'].iloc[-1]) if not pd.isna(df['MACD'].iloc[-1]) else 0
         current_signal = float(df['Signal'].iloc[-1]) if not pd.isna(df['Signal'].iloc[-1]) else 0
         
-        # Get 52-week high/low
         week_52_high = float(data["High"].tail(252).max()) if len(data) >= 252 else current_price * 1.2
         week_52_low = float(data["Low"].tail(252).min()) if len(data) >= 252 else current_price * 0.8
         
-        # Get market cap and other info
         info = stock.info
         market_cap = info.get('marketCap', 0)
         pe_ratio = info.get('trailingPE', 0)
@@ -463,51 +419,31 @@ def get_stock_data(symbol, force_refresh=False):
             "timestamp": datetime.now().isoformat()
         }
         
-        # Store in cache
         stock_cache[symbol] = (datetime.now(), result)
         print(f"✅ Successfully cached fresh data for {symbol}")
-        
         return result
         
     except Exception as e:
-        error_msg = str(e)
-        print(f"❌ Stock fetch error for {symbol}: {error_msg}")
-        
-        # Check if it's a rate limiting error
-        if "Too Many Requests" in error_msg or "429" in error_msg:
-            print(f"⚠️ RATE LIMIT DETECTED for {symbol} - Yahoo is blocking requests")
-            # If we have cached data, return it even if expired
-            if symbol in stock_cache:
-                cache_time, cache_data = stock_cache[symbol]
-                print(f"⚠️ Using EXPIRED cache for {symbol} as fallback (age: {(datetime.now() - cache_time).seconds} seconds)")
-                return cache_data
-        
+        print(f"❌ Stock fetch error for {symbol}: {e}")
+        if symbol in stock_cache:
+            cache_time, cache_data = stock_cache[symbol]
+            print(f"⚠️ Using expired cache for {symbol}")
+            return cache_data
         return None
 
 # ============================================
-# PREDICTION FUNCTION USING MODELS/PREDICTOR.PY
+# PREDICTION FUNCTIONS
 # ============================================
 
 def generate_stock_predictions(symbol, stock_data):
-    """
-    Generate stock predictions using the predictor module
-    """
     try:
-        # Prepare data for predictor
         current_price = stock_data['current_price']
         recent_prices = stock_data['recent_prices']
         volatility = stock_data['volatility']
         
-        # Create a simple DataFrame for the predictor
-        import pandas as pd
-        data = pd.DataFrame({
-            'Close': recent_prices
-        })
-        
-        # Call the predictor function
+        data = pd.DataFrame({'Close': recent_prices})
         predictions = predict_price(data)
         
-        # Format the predictions with confidence bands
         formatted_predictions = {
             "open": {
                 "value": predictions['open'],
@@ -535,100 +471,61 @@ def generate_stock_predictions(symbol, stock_data):
             },
             "trend": "NEUTRAL",
             "trend_strength": 50,
-            "support": round(current_price * 0.96, 2),
-            "resistance": round(current_price * 1.04, 2),
-            "risk_factors": [
-                f"Volatility at {volatility:.1f}%",
-                f"Based on {len(recent_prices)} recent prices"
-            ],
-            "sentiment": "NEUTRAL",
-            "recommendation": "HOLD",
-            "overall_confidence": 80,
-            "analysis_summary": f"Predictor model suggests price movement based on recent trends. Current price: ${current_price:.2f}"
+            "recommendation": "HOLD"
         }
         
-        print(f"✓ Generated predictions using models/predictor.py for {symbol}")
+        print(f"✓ Generated predictions for {symbol}")
         return formatted_predictions
         
     except Exception as e:
-        print(f"Error using predictor module: {e}")
+        print(f"Error using predictor: {e}")
         return generate_fallback_predictions(stock_data)
 
 def generate_fallback_predictions(stock_data):
-    """Fallback prediction logic if predictor fails"""
     current = stock_data['current_price']
     volatility = stock_data['volatility'] / 100
-    
-    print(f"Generating fallback predictions based on current price: ${current:.2f}")
     
     trend_factor = 1 if stock_data['momentum'] > 0 else -1 if stock_data['momentum'] < 0 else 0
     rsi_factor = (stock_data['rsi'] - 50) / 50
     
     combined_factor = (trend_factor * 0.6 + rsi_factor * 0.4) * volatility
-    
     expected_change_pct = combined_factor * 2
     close_value = current * (1 + expected_change_pct / 100)
     close_value = max(current * 0.95, min(current * 1.05, close_value))
     
     confidence = max(65, min(95, int(95 - volatility * 1.5)))
-    bound_pct = volatility * 0.5
     
     return {
-        "open": {
-            "value": round(current * (1 + random.uniform(-0.01, 0.01)), 2),
-            "lower_bound": round(current * (1 - bound_pct), 2),
-            "upper_bound": round(current * (1 + bound_pct), 2),
-            "confidence": confidence
-        },
-        "high": {
-            "value": round(max(current, close_value) * (1 + random.uniform(0.005, 0.015)), 2),
-            "lower_bound": round(max(current, close_value) * 0.99, 2),
-            "upper_bound": round(max(current, close_value) * (1 + bound_pct * 1.5), 2),
-            "confidence": confidence - 5
-        },
-        "low": {
-            "value": round(min(current, close_value) * (1 - random.uniform(0.005, 0.015)), 2),
-            "lower_bound": round(min(current, close_value) * (1 - bound_pct * 1.5), 2),
-            "upper_bound": round(min(current, close_value) * 1.01, 2),
-            "confidence": confidence - 5
-        },
-        "close": {
-            "value": round(close_value, 2),
-            "lower_bound": round(close_value * (1 - bound_pct), 2),
-            "upper_bound": round(close_value * (1 + bound_pct), 2),
-            "confidence": confidence
-        },
-        "trend": "BULLISH" if combined_factor > 0.05 else "BEARISH" if combined_factor < -0.05 else "NEUTRAL",
-        "trend_strength": min(90, int(abs(combined_factor) * 800)),
-        "support": round(current * 0.96, 2),
-        "resistance": round(current * 1.04, 2),
-        "risk_factors": [
-            f"Volatility at {stock_data['volatility']:.1f}%",
-            f"RSI at {stock_data['rsi']:.1f} indicating {'overbought' if stock_data['rsi'] > 70 else 'oversold' if stock_data['rsi'] < 30 else 'neutral'} conditions",
-            f"Volume {stock_data['volume_trend'].lower()} compared to average"
-        ],
-        "sentiment": "NEUTRAL",
-        "recommendation": "HOLD",
-        "overall_confidence": confidence,
-        "analysis_summary": f"Technical analysis suggests {('bullish' if combined_factor > 0 else 'bearish' if combined_factor < 0 else 'neutral')} momentum with {confidence}% confidence. Current price: ${current:.2f}"
+        "open": {"value": round(current * (1 + random.uniform(-0.01, 0.01)), 2),
+                "lower_bound": round(current * 0.97, 2),
+                "upper_bound": round(current * 1.03, 2),
+                "confidence": confidence},
+        "high": {"value": round(max(current, close_value) * 1.01, 2),
+                "lower_bound": round(max(current, close_value) * 0.99, 2),
+                "upper_bound": round(max(current, close_value) * 1.03, 2),
+                "confidence": confidence - 5},
+        "low": {"value": round(min(current, close_value) * 0.99, 2),
+               "lower_bound": round(min(current, close_value) * 0.97, 2),
+               "upper_bound": round(min(current, close_value) * 1.01, 2),
+               "confidence": confidence - 5},
+        "close": {"value": round(close_value, 2),
+                 "lower_bound": round(close_value * 0.97, 2),
+                 "upper_bound": round(close_value * 1.03, 2),
+                 "confidence": confidence},
+        "trend": "BULLISH" if expected_change_pct > 0.5 else "BEARISH" if expected_change_pct < -0.5 else "NEUTRAL",
+        "trend_strength": min(90, int(abs(expected_change_pct) * 50)),
+        "recommendation": "BUY" if expected_change_pct > 1 else "SELL" if expected_change_pct < -1 else "HOLD"
     }
 
 # ============================================
-# UPDATED LOGIN_REQUIRED DECORATOR FOR API
+# LOGIN REQUIRED DECORATOR
 # ============================================
 
 def login_required(f):
-    """Decorator to require login for protected routes - handles API and web separately"""
     def decorated_function(*args, **kwargs):
         if "user" not in session:
-            # For API requests, return JSON error
             if request.path.startswith('/api/'):
-                return jsonify({
-                    "error": "Authentication required", 
-                    "redirect": "/login",
-                    "message": "Please login to access this resource"
-                }), 401
-            # For regular requests, redirect to login
+                return jsonify({"error": "Authentication required"}), 401
             flash("Please login to access this page", "warning")
             return redirect(url_for('login'))
         return f(*args, **kwargs)
@@ -641,41 +538,31 @@ def login_required(f):
 
 @app.route("/")
 def landing():
-    """Root URL - redirect to login if not authenticated, else to dashboard"""
     if "user" in session:
         return redirect(url_for('jeet'))
     return redirect(url_for('login'))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Login page - GET shows form, POST processes login"""
-    # If user is already logged in, redirect to dashboard
     if "user" in session:
         return redirect(url_for('jeet'))
     
     if request.method == "POST":
-        # Handle both JSON and form data
         if request.is_json:
             data = request.get_json()
             email = data.get("email")
             password = data.get("password")
-            remember = data.get("remember", False)
         else:
             email = request.form.get("email")
             password = request.form.get("password")
-            remember = request.form.get("remember") == "on"
         
-        # Validate input
         if not email or not password:
             if request.is_json:
-                return jsonify({"success": False, "error": "Email and password are required"}), 400
-            else:
-                flash("Email and password are required", "error")
-                return render_template("login.html")
+                return jsonify({"success": False, "error": "Email and password required"}), 400
+            flash("Email and password required", "error")
+            return render_template("login.html")
         
-        # Check credentials
         if email in users and users[email]["password"] == password:
-            session.permanent = remember
             session["user"] = {
                 "email": email,
                 "first_name": users[email]["first_name"],
@@ -683,32 +570,23 @@ def login():
             }
             
             if request.is_json:
-                response = jsonify({"success": True, "redirect": "/jeet"})
-                # Ensure cookies are set for cross-origin requests
-                response.headers.add('Access-Control-Allow-Credentials', 'true')
-                return response
-            else:
-                flash(f"Welcome back, {users[email]['first_name']}!", "success")
-                return redirect(url_for('jeet'))
+                return jsonify({"success": True, "redirect": "/jeet"})
+            flash(f"Welcome back, {users[email]['first_name']}!", "success")
+            return redirect(url_for('jeet'))
         else:
             if request.is_json:
-                return jsonify({"success": False, "error": "Invalid email or password"}), 401
-            else:
-                flash("Invalid email or password", "error")
-                return render_template("login.html")
+                return jsonify({"success": False, "error": "Invalid credentials"}), 401
+            flash("Invalid email or password", "error")
+            return render_template("login.html")
     
-    # GET request - show login page
     return render_template("login.html")
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
-    """Signup page - GET shows form, POST processes signup"""
-    # If user is already logged in, redirect to dashboard
     if "user" in session:
         return redirect(url_for('jeet'))
     
     if request.method == "POST":
-        # Handle both JSON and form data
         if request.is_json:
             data = request.get_json()
             first_name = data.get("first_name") or data.get("firstName")
@@ -721,39 +599,30 @@ def signup():
             email = request.form.get("email")
             password = request.form.get("password")
         
-        # Validate input
         if not all([first_name, last_name, email, password]):
             if request.is_json:
-                return jsonify({"success": False, "error": "All fields are required"}), 400
-            else:
-                flash("All fields are required", "error")
-                return render_template("signup.html")
+                return jsonify({"success": False, "error": "All fields required"}), 400
+            flash("All fields required", "error")
+            return render_template("signup.html")
         
-        # Validate email format
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
             if request.is_json:
-                return jsonify({"success": False, "error": "Invalid email format"}), 400
-            else:
-                flash("Invalid email format", "error")
-                return render_template("signup.html")
+                return jsonify({"success": False, "error": "Invalid email"}), 400
+            flash("Invalid email format", "error")
+            return render_template("signup.html")
         
-        # Validate password strength (minimum 6 characters)
         if len(password) < 6:
             if request.is_json:
-                return jsonify({"success": False, "error": "Password must be at least 6 characters"}), 400
-            else:
-                flash("Password must be at least 6 characters", "error")
-                return render_template("signup.html")
+                return jsonify({"success": False, "error": "Password too short"}), 400
+            flash("Password must be at least 6 characters", "error")
+            return render_template("signup.html")
         
-        # Check if user already exists
         if email in users:
             if request.is_json:
                 return jsonify({"success": False, "error": "Email already registered"}), 400
-            else:
-                flash("Email already registered", "error")
-                return render_template("signup.html")
+            flash("Email already registered", "error")
+            return render_template("signup.html")
         
-        # Create new user
         users[email] = {
             "password": password,
             "first_name": first_name,
@@ -761,7 +630,6 @@ def signup():
             "created_at": datetime.now().isoformat()
         }
         
-        # Auto login after signup
         session["user"] = {
             "email": email,
             "first_name": first_name,
@@ -769,131 +637,108 @@ def signup():
         }
         
         if request.is_json:
-            response = jsonify({"success": True, "redirect": "/jeet"})
-            response.headers.add('Access-Control-Allow-Credentials', 'true')
-            return response
-        else:
-            flash(f"Welcome to AlphaAnalytics, {first_name}!", "success")
-            return redirect(url_for('jeet'))
+            return jsonify({"success": True, "redirect": "/jeet"})
+        flash(f"Welcome to AlphaAnalytics, {first_name}!", "success")
+        return redirect(url_for('jeet'))
     
-    # GET request - show signup page
     return render_template("signup.html")
 
 @app.route("/logout")
 def logout():
-    """Logout user and clear session"""
     session.pop("user", None)
     flash("You have been logged out", "info")
     return redirect(url_for('login'))
 
 # ============================================
-# PROTECTED ROUTES (Require Authentication)
+# PROTECTED ROUTES
 # ============================================
 
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    """Main dashboard - redirect to jeet.html"""
     return redirect(url_for('jeet'))
 
 @app.route("/jeet")
 @login_required
 def jeet():
-    """Main dashboard page"""
     return render_template("jeet.html", user=session.get("user"))
 
 @app.route("/portfolio")
 @login_required
 def portfolio():
-    """Portfolio page"""
     return render_template("portfolio.html", user=session.get("user"))
 
 @app.route("/mystock")
 @login_required
 def mystock():
-    """My Stock page"""
     return render_template("mystock.html", user=session.get("user"))
 
 @app.route("/deposit")
 @login_required
 def deposit():
-    """Deposit page"""
     return render_template("deposit.html", user=session.get("user"))
 
 @app.route("/insight")
 @login_required
 def insight():
-    """Insight page"""
     return render_template("insight.html", user=session.get("user"))
 
 @app.route("/prediction")
 @login_required
 def prediction():
-    """Prediction page"""
     return render_template("prediction.html", user=session.get("user"))
 
 @app.route("/news")
 @login_required
 def news():
-    """News page"""
     return render_template("news.html", user=session.get("user"))
 
 @app.route("/videos")
 @login_required
 def videos():
-    """Videos page"""
     return render_template("videos.html", user=session.get("user"))
 
 @app.route("/superstars")
 @login_required
 def superstars():
-    """Superstars page"""
     return render_template("superstars.html", user=session.get("user"))
 
 @app.route("/alerts")
 @login_required
 def alerts():
-    """Alerts page"""
     return render_template("alerts.html", user=session.get("user"))
 
 @app.route("/help")
 @login_required
 def help():
-    """Help page"""
     return render_template("help.html", user=session.get("user"))
 
 @app.route("/profile")
 @login_required
 def profile():
-    """Profile page"""
     return render_template("profile.html", user=session.get("user"))
 
 # ============================================
-# API ENDPOINTS (All require authentication)
+# API ENDPOINTS
 # ============================================
 
 @app.route("/api/live-quote/<symbol>", methods=["GET"])
 @login_required
 def live_quote(symbol):
-    """Get REAL-TIME stock data from yfinance"""
-    # Rate limiting
     client_ip = request.remote_addr
     if not check_rate_limit(client_ip):
-        return jsonify({"error": "Rate limit exceeded. Please slow down."}), 429
+        return jsonify({"error": "Rate limit exceeded"}), 429
     
     try:
         symbol = symbol.upper()
-        
         if not validate_stock_symbol(symbol):
             return jsonify({"error": "Invalid symbol"}), 400
         
-        # Get stock data (cached) - NO force_refresh to protect from rate limiting
         stock_data = get_stock_data(symbol, force_refresh=False)
-        
         if not stock_data:
             return jsonify({"error": "Stock data unavailable"}), 404
         
-        response = jsonify({
+        return jsonify({
             "symbol": symbol,
             "current_price": stock_data["current_price"],
             "change": stock_data["change"],
@@ -910,8 +755,6 @@ def live_quote(symbol):
             "pe_ratio": stock_data["pe_ratio"],
             "timestamp": stock_data["timestamp"]
         })
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
         
     except Exception as e:
         print(f"Live quote error: {e}")
@@ -920,17 +763,15 @@ def live_quote(symbol):
 @app.route("/api/batch-quote", methods=["POST"])
 @login_required
 def batch_quote():
-    """Get real-time data for multiple symbols at once"""
-    # Rate limiting
     client_ip = request.remote_addr
     if not check_rate_limit(client_ip):
-        return jsonify({"error": "Rate limit exceeded. Please slow down."}), 429
+        return jsonify({"error": "Rate limit exceeded"}), 429
     
     try:
         data = request.get_json()
         symbols = data.get("symbols", [])
         
-        if not symbols or len(symbols) > 10:  # Reduced from 20 to 10
+        if not symbols or len(symbols) > 10:
             return jsonify({"error": "Please provide 1-10 symbols"}), 400
         
         results = {}
@@ -945,12 +786,10 @@ def batch_quote():
                         "volume": stock_data["volume"]
                     }
         
-        response = jsonify({
+        return jsonify({
             "quotes": results,
             "timestamp": datetime.now().isoformat()
         })
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -958,11 +797,9 @@ def batch_quote():
 @app.route("/api/predict", methods=["POST"])
 @login_required
 def predict():
-    """Generate price predictions for a stock using models/predictor.py"""
-    # Rate limiting
     client_ip = request.remote_addr
     if not check_rate_limit(client_ip):
-        return jsonify({"error": "Rate limit exceeded. Please slow down."}), 429
+        return jsonify({"error": "Rate limit exceeded"}), 429
     
     data = request.get_json()
     symbol = data.get("symbol", "AAPL").upper()
@@ -970,23 +807,15 @@ def predict():
     if not validate_stock_symbol(symbol):
         return jsonify({"error": "Invalid symbol"}), 400
 
-    # Use force_refresh=False to protect from rate limiting
-    # Predictions don't need absolute real-time data
     stock_data = get_stock_data(symbol, force_refresh=False)
 
     if not stock_data:
         return jsonify({"error": "Stock data unavailable"}), 400
 
-    # Use the predictor module
     predictions = generate_stock_predictions(symbol, stock_data)
-    
-    # Generate risk analysis
     risk_analysis = generate_risk_analysis(stock_data, predictions)
-    
-    # Generate confidence bands
     confidence_bands = generate_confidence_bands(predictions, stock_data)
     
-    # Get AI analysis from Gemini (only if client is available)
     analysis_prompt = f"""
     Based on the following data for {symbol}:
     - Current Price: ${stock_data['current_price']:.2f}
@@ -1000,7 +829,6 @@ def predict():
     
     ai_analysis = predictions.get('analysis_summary', f'Analysis for {symbol} using predictor model.')
     
-    # Only try Gemini if client exists and we have a valid model
     if client and GEMINI_MODEL:
         try:
             analysis_response = client.models.generate_content(
@@ -1012,7 +840,6 @@ def predict():
                 print(f"✓ Gemini analysis successful for {symbol}")
         except Exception as e:
             print(f"Gemini analysis error: {e}")
-            # Fall back to the prediction summary
 
     response_data = {
         "symbol": symbol,
@@ -1044,41 +871,36 @@ def predict():
         }
     }
     
-    # FIXED: Send email asynchronously with timeout - doesn't block response
-    if EMAIL_SENDER and EMAIL_PASSWORD:
+    # Send email via SendGrid (async)
+    if EMAIL_SENDER and SENDGRID_API_KEY:
         try:
-            # Send email in background thread - returns immediately
             import threading
             email_thread = threading.Thread(
                 target=send_prediction_email,
-                args=(EMAIL_SENDER, symbol, predictions, ai_analysis)  # Sends to yourself
+                args=(EMAIL_SENDER, symbol, predictions, ai_analysis)
             )
-            email_thread.daemon = True  # Thread will exit when main process exits
+            email_thread.daemon = True
             email_thread.start()
-            print(f"📧 Email queued for {symbol} (sending in background)")
+            print(f"📧 Email queued for {symbol} via SendGrid")
         except Exception as e:
-            print(f"⚠️ Email queue error: {e}")  # Don't fail the response
+            print(f"⚠️ Email queue error: {e}")
     else:
-        print("⚠️ Email not configured - Missing EMAIL_SENDER or EMAIL_PASSWORD")
+        print("⚠️ SendGrid not configured - Missing SENDGRID_API_KEY")
     
-    response = jsonify(response_data)
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
+    return jsonify(response_data)
 
 @app.route("/api/market-summary")
 @login_required
 def market_summary():
-    """Get market summary for major stocks"""
-    # Rate limiting
     client_ip = request.remote_addr
     if not check_rate_limit(client_ip):
-        return jsonify({"error": "Rate limit exceeded. Please slow down."}), 429
+        return jsonify({"error": "Rate limit exceeded"}), 429
     
     stocks = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA"]
     data = []
 
     for s in stocks:
-        d = get_stock_data(s, force_refresh=False)  # IMPORTANT: Use cache, never force refresh
+        d = get_stock_data(s, force_refresh=False)
         if d:
             data.append({
                 "symbol": s,
@@ -1103,7 +925,6 @@ def market_summary():
     
     text = "Market showing mixed signals with varying volatility levels."
     
-    # Only try Gemini if client exists
     if client and GEMINI_MODEL:
         try:
             res = client.models.generate_content(
@@ -1116,22 +937,18 @@ def market_summary():
         except Exception as e:
             print(f"Market summary Gemini error: {e}")
 
-    response = jsonify({
+    return jsonify({
         "market_summary": text,
         "market_data": data,
         "timestamp": datetime.now().isoformat()
     })
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
 
 @app.route("/api/agentic-analyze", methods=["POST"])
 @login_required
 def agentic_analyze():
-    """Agentic goal-based stock analysis"""
-    # Rate limiting
     client_ip = request.remote_addr
     if not check_rate_limit(client_ip):
-        return jsonify({"error": "Rate limit exceeded. Please slow down."}), 429
+        return jsonify({"error": "Rate limit exceeded"}), 429
     
     try:
         data = request.get_json()
@@ -1146,9 +963,7 @@ def agentic_analyze():
         
         result = agentic_stock_analysis(symbol, user_goal)
         
-        response = jsonify(result)
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
+        return jsonify(result)
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1156,7 +971,6 @@ def agentic_analyze():
 @app.route("/api/agentic-tools", methods=["GET"])
 @login_required
 def get_agentic_tools():
-    """Return available tools for the agentic system"""
     tools = [
         {
             "name": "get_stock_data",
@@ -1180,93 +994,28 @@ def get_agentic_tools():
         }
     ]
     
-    response = jsonify({
+    return jsonify({
         "tools": tools,
         "version": "1.0",
         "description": "Agentic AI Trading Assistant Tools"
     })
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
 
 @app.route("/api/health")
 def health():
-    """Health check endpoint (public)"""
     return jsonify({
         "status": "healthy",
-        "version": "Gemini Enhanced AI v2.0 with Predictor Module",
+        "version": "Gemini Enhanced AI v2.0 with SendGrid",
         "ai_model": GEMINI_MODEL if GEMINI_MODEL else "None (using predictor)",
         "api_key_configured": bool(GEMINI_API_KEY),
         "gemini_working": bool(client and GEMINI_MODEL),
-        "email_configured": bool(EMAIL_SENDER and EMAIL_PASSWORD),
+        "sendgrid_configured": bool(SENDGRID_API_KEY),
         "predictor_loaded": True,
         "cache_duration": f"{CACHE_DURATION} seconds",
-        "features": [
-            "Live Real-time Data",
-            "Predictor Module Integration",
-            "Gemini AI Enhancement" if client and GEMINI_MODEL else "Gemini AI (disabled)",
-            "Agentic AI Planning",
-            "Goal-based Analysis",
-            "Confidence Bands",
-            "Risk Analysis",
-            "Technical Indicators",
-            "Sentiment Analysis",
-            "VaR Calculation",
-            "Email Notifications (Async)",
-            "User Authentication",
-            "Rate Limit Protection",
-            "Yahoo Finance Cache Protection"
-        ],
         "users_registered": len(users)
     })
 
-# ============================================
-# DEBUG ENDPOINTS
-# ============================================
-
-@app.route("/api/debug", methods=["GET"])
-def debug_info():
-    """Debug endpoint to check configuration and test predictor"""
-    debug_info = {
-        "status": "debug",
-        "python_path": sys.path,
-        "current_directory": os.getcwd(),
-        "files_in_root": os.listdir('.'),
-        "models_folder_exists": os.path.exists('models'),
-        "predictor_module": False,
-        "predictor_test": None,
-        "error": None,
-        "cache_size": len(stock_cache),
-        "cache_duration": CACHE_DURATION
-    }
-    
-    # Test if models folder exists and list its contents
-    if os.path.exists('models'):
-        try:
-            debug_info["models_files"] = os.listdir('models')
-        except:
-            debug_info["models_files"] = "Error listing directory"
-    
-    # Test predictor import
-    try:
-        from models.predictor import predict_price
-        debug_info["predictor_module"] = True
-        
-        # Test with simple data
-        test_data = [100, 101, 102, 101, 103]
-        test_result = predict_price(test_data, symbol="DEBUG")
-        debug_info["predictor_test"] = test_result
-    except Exception as e:
-        debug_info["predictor_module"] = False
-        debug_info["error"] = str(e)
-        debug_info["traceback"] = traceback.format_exc()
-    
-    response = jsonify(debug_info)
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
-
 @app.route("/api/debug-simple", methods=["GET"])
 def debug_simple():
-    """Super simple debug endpoint that always works"""
     return jsonify({
         "status": "ok",
         "message": "Server is running",
@@ -1279,74 +1028,41 @@ def debug_simple():
 # ============================================
 
 def generate_risk_analysis(stock_data, predictions):
-    """Generate comprehensive risk analysis"""
-    
     risks = []
     
     if stock_data['volatility'] > 40:
         risks.append({
             "level": "HIGH",
             "type": "VOLATILITY RISK",
-            "message": f"Extreme volatility ({stock_data['volatility']:.1f}%) detected",
-            "impact": "Large price swings expected",
-            "mitigation": "Consider reducing position size or using options"
+            "message": f"Extreme volatility ({stock_data['volatility']:.1f}%)",
+            "impact": "Large price swings expected"
         })
     elif stock_data['volatility'] > 25:
         risks.append({
             "level": "MEDIUM",
             "type": "VOLATILITY RISK",
             "message": f"Elevated volatility ({stock_data['volatility']:.1f}%)",
-            "impact": "Moderate price fluctuations",
-            "mitigation": "Set wider stop-losses"
+            "impact": "Moderate price fluctuations"
         })
     
     if stock_data['rsi'] > 70:
         risks.append({
             "level": "MEDIUM",
             "type": "RSI SIGNAL",
-            "message": f"RSI at {stock_data['rsi']:.1f} - Overbought conditions",
-            "impact": "Potential pullback or consolidation",
-            "mitigation": "Wait for RSI to cool down before buying"
+            "message": f"RSI at {stock_data['rsi']:.1f} - Overbought",
+            "impact": "Potential pullback"
         })
     elif stock_data['rsi'] < 30:
         risks.append({
             "level": "MEDIUM",
             "type": "RSI SIGNAL",
-            "message": f"RSI at {stock_data['rsi']:.1f} - Oversold conditions",
-            "impact": "Potential bounce or reversal",
-            "mitigation": "Look for confirmation before selling"
+            "message": f"RSI at {stock_data['rsi']:.1f} - Oversold",
+            "impact": "Potential bounce"
         })
-    
-    if stock_data['volume_trend'] == "LOW":
-        risks.append({
-            "level": "LOW",
-            "type": "LIQUIDITY RISK",
-            "message": "Below average trading volume",
-            "impact": "May have wider bid-ask spreads",
-            "mitigation": "Use limit orders"
-        })
-    
-    if predictions and predictions.get('trend') == "BULLISH" and stock_data['momentum'] < -5:
-        risks.append({
-            "level": "MEDIUM",
-            "type": "TREND REVERSAL",
-            "message": "Bullish prediction but negative momentum",
-            "impact": "Potential false signal",
-            "mitigation": "Wait for confirmation"
-        })
-    
-    risks.append({
-        "level": "INFO",
-        "type": "VALUE AT RISK",
-        "message": f"95% VaR: {stock_data['var_95']:.2f}% | 99% VaR: {stock_data['var_99']:.2f}%",
-        "impact": f"Max expected loss (95% confidence): ${abs(stock_data['current_price'] * stock_data['var_95']/100):.2f}",
-        "mitigation": "Adjust position size accordingly"
-    })
     
     risk_score = min(100, int(
         stock_data['volatility'] * 1.2 +
-        (max(0, stock_data['rsi'] - 70) * 1.5 if stock_data['rsi'] > 70 else max(0, 30 - stock_data['rsi']) * 1.5) +
-        (15 if stock_data['volume_trend'] == "LOW" else 0)
+        (max(0, stock_data['rsi'] - 70) * 1.5 if stock_data['rsi'] > 70 else max(0, 30 - stock_data['rsi']) * 1.5)
     ))
     
     risk_level = "CRITICAL" if risk_score > 80 else "HIGH" if risk_score > 60 else "MEDIUM" if risk_score > 40 else "LOW"
@@ -1361,8 +1077,6 @@ def generate_risk_analysis(stock_data, predictions):
     }
 
 def generate_confidence_bands(predictions, stock_data):
-    """Generate confidence bands for visualization"""
-    
     if not predictions or 'close' not in predictions:
         return None
     
@@ -1390,13 +1104,8 @@ def generate_confidence_bands(predictions, stock_data):
     return bands
 
 def agentic_stock_analysis(symbol, user_goal):
-    """
-    AI Agent that plans and executes steps to achieve user's goal
-    """
-    
-    # If no API key, return simple analysis
     if not client or not GEMINI_MODEL:
-        stock_data = get_stock_data(symbol, force_refresh=False)  # Use cache
+        stock_data = get_stock_data(symbol, force_refresh=False)
         if not stock_data:
             return {"error": f"Unable to fetch data for {symbol}"}
         
@@ -1452,12 +1161,6 @@ def agentic_stock_analysis(symbol, user_goal):
     5. gemini_enhance - Enhances analysis with Gemini AI
 
     Based on the user's goal, create a step-by-step plan to achieve it.
-    Consider:
-    - What data needs to be gathered first?
-    - What analysis is required?
-    - What tools should be used and in what order?
-    - What final output should be provided?
-
     Return the plan as a numbered list of steps.
     """
     
@@ -1478,13 +1181,10 @@ def agentic_stock_analysis(symbol, user_goal):
         print(plan)
         print("="*60 + "\n")
         
-        stock_data = get_stock_data(symbol, force_refresh=False)  # Use cache
+        stock_data = get_stock_data(symbol, force_refresh=False)
         
         if not stock_data:
-            return {
-                "error": f"Unable to fetch data for {symbol}",
-                "plan": plan
-            }
+            return {"error": f"Unable to fetch data for {symbol}", "plan": plan}
         
         predictions = generate_stock_predictions(symbol, stock_data)
         risk = generate_risk_analysis(stock_data, predictions)
@@ -1506,11 +1206,7 @@ def agentic_stock_analysis(symbol, user_goal):
         
         User's Goal: {user_goal}
         
-        Provide a comprehensive analysis summary that:
-        1. Addresses the user's specific goal
-        2. Explains the key findings
-        3. Gives actionable recommendations
-        4. Highlights important risks
+        Provide a comprehensive analysis summary that addresses the user's goal and gives actionable recommendations.
         """
         
         analysis_response = client.models.generate_content(
@@ -1555,10 +1251,8 @@ def agentic_stock_analysis(symbol, user_goal):
             "comprehensive_analysis": comprehensive_analysis
         }
         
-        # FIXED: Email sending in agentic analysis - async with timeout
-        if EMAIL_SENDER and EMAIL_PASSWORD and ("email" in user_goal.lower() or "mail" in user_goal.lower() or "notif" in user_goal.lower()):
+        if EMAIL_SENDER and SENDGRID_API_KEY and ("email" in user_goal.lower() or "mail" in user_goal.lower()):
             try:
-                # Send email asynchronously
                 import threading
                 email_thread = threading.Thread(
                     target=send_prediction_email,
@@ -1567,39 +1261,32 @@ def agentic_stock_analysis(symbol, user_goal):
                 email_thread.daemon = True
                 email_thread.start()
                 result["email_sent"] = True
-                print(f"📧 Email queued for {symbol} (sending in background)")
+                print(f"📧 Email queued for {symbol}")
             except Exception as e:
                 print(f"✗ Email error: {e}")
                 result["email_sent"] = False
-                result["email_error"] = str(e)
         
         return result
         
     except Exception as e:
         print("Agentic analysis error:", e)
-        return {
-            "error": str(e),
-            "symbol": symbol,
-            "user_goal": user_goal
-        }
+        return {"error": str(e), "symbol": symbol, "user_goal": user_goal}
 
 # ============================================
-# FALLBACK ROUTE FOR UNKNOWN PAGES
+# FALLBACK ROUTE
 # ============================================
 
 @app.route("/<path:path>")
 def catch_all(path):
-    """Catch-all route - redirect to login if not authenticated, otherwise show 404"""
     if "user" not in session:
         return redirect(url_for('login'))
     return render_template("404.html"), 404
 
 # ============================================
-# RUN SERVER - UPDATED FOR RENDER
+# RUN SERVER
 # ============================================
 
 if __name__ == "__main__":
-    # Get port from environment variable (Render sets this)
     port = int(os.environ.get("PORT", 10000))
     host = "0.0.0.0"
     
@@ -1612,22 +1299,15 @@ if __name__ == "__main__":
     print("\n✓ Configuration Status:")
     print(f"  • Gemini API Key: {'✅ Configured' if GEMINI_API_KEY else '❌ Missing'}")
     print(f"  • Gemini Model: {GEMINI_MODEL if GEMINI_MODEL else '❌ Not available'}")
-    print(f"  • Gemini Status: {'✅ Working' if (client and GEMINI_MODEL) else '⚠ Using fallback'}")
-    print(f"  • Email Settings: {'✅ Configured' if (EMAIL_SENDER and EMAIL_PASSWORD) else '❌ Missing'}")
-    print(f"  • Email Mode: {'✅ Async with timeout' if (EMAIL_SENDER and EMAIL_PASSWORD) else '❌ Disabled'}")
-    print(f"  • Predictor Module: ✅ Loaded from models/predictor.py")
-    print(f"  • Cache Duration: {CACHE_DURATION} seconds (1 hour) - Prevents Yahoo blocking")
+    print(f"  • SendGrid API Key: {'✅ Configured' if SENDGRID_API_KEY else '❌ Missing'}")
+    print(f"  • Predictor Module: ✅ Loaded")
+    print(f"  • Cache Duration: {CACHE_DURATION} seconds")
     print("="*60)
-    print(f"\nDemo Account:")
-    print(f"  • Email:    demo@alpha.com")
-    print(f"  • Password: demo123")
+    print(f"\nDemo Account: demo@alpha.com / demo123")
     print("="*60)
     print(f"\n🚀 Server starting on http://{host}:{port}")
     print("="*60)
     sys.stdout.flush()
     
-    # IMPORTANT: For Render, we don't call app.run() directly
-    # Gunicorn will handle this
-    # This block only runs when doing "python app.py" locally
     if __name__ == "__main__":
         app.run(host=host, port=port, debug=False)
