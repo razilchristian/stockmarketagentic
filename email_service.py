@@ -1,120 +1,136 @@
 # email_service.py
-import smtplib
 import os
 import logging
 import threading
-import socket
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Set timeout for SMTP connections (10 seconds)
-socket.setdefaulttimeout(10)
-
 def send_prediction_email(recipient_email, symbol, predictions, analysis):
     """
-    Send prediction results via email (non-blocking)
+    Send prediction results via email using SendGrid (non-blocking)
     Returns immediately, sends email in background thread
     """
     def _send_email_task():
         """Background task to actually send the email"""
         try:
-            sender_email = os.getenv("EMAIL_SENDER")
-            sender_password = os.getenv("EMAIL_PASSWORD")
+            # Get SendGrid API key from environment
+            sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
+            from_email = os.getenv("EMAIL_SENDER", "razilchristian@gmail.com")
             
-            logger.info(f"📧 Email task started for {symbol}")
-            logger.info(f"Sender: {sender_email}")
-            logger.info(f"Password configured: {'Yes' if sender_password else 'No'}")
+            logger.info(f"📧 SendGrid task started for {symbol}")
+            logger.info(f"SendGrid API Key configured: {'Yes' if sendgrid_api_key else 'No'}")
             
-            if not sender_email or not sender_password:
-                logger.error("❌ Email not configured - missing credentials")
+            if not sendgrid_api_key:
+                logger.error("❌ SendGrid API key not configured")
                 return False
             
-            # Create message
-            msg = MIMEMultipart('alternative')
-            msg['From'] = sender_email
-            msg['To'] = recipient_email
-            msg['Subject'] = f"AlphaAnalytics AI Report: {symbol}"
-            
-            # Simple HTML version
-            html_body = f"""
+            # Create HTML content
+            html_content = f"""
             <html>
-            <body style="font-family: Arial; padding: 20px;">
-                <h2 style="color:#6366f1;">AlphaAnalytics AI Prediction</h2>
-                <h3>{symbol}</h3>
-                <table style="width:100%; border-collapse:collapse;">
-                    <tr><td><b>Open:</b></td><td>${predictions['open']['value']}</td><td>({predictions['open']['confidence']}%)</td></tr>
-                    <tr><td><b>High:</b></td><td>${predictions['high']['value']}</td><td>({predictions['high']['confidence']}%)</td></tr>
-                    <tr><td><b>Low:</b></td><td>${predictions['low']['value']}</td><td>({predictions['low']['confidence']}%)</td></tr>
-                    <tr><td><b>Close:</b></td><td>${predictions['close']['value']}</td><td>({predictions['close']['confidence']}%)</td></tr>
-                </table>
-                <p><b>Trend:</b> {predictions.get('trend', 'NEUTRAL')} ({predictions.get('trend_strength', 50)}%)</p>
-                <p><b>Recommendation:</b> {predictions.get('recommendation', 'HOLD')}</p>
-                <p><b>Analysis:</b> {analysis}</p>
-                <hr><small>AlphaAnalytics AI</small>
+            <body style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
+                <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; padding: 20px; border-radius: 10px 10px 0 0;">
+                    <h2 style="margin: 0;">🚀 AlphaAnalytics AI Prediction</h2>
+                </div>
+                <div style="background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+                    <h3 style="color: #6366f1; margin-top: 0;">{symbol}</h3>
+                    
+                    <h4>📊 Price Predictions</h4>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                            <td style="padding: 8px 0;"><b>Open:</b></td>
+                            <td style="padding: 8px 0;">${predictions['open']['value']}</td>
+                            <td style="padding: 8px 0; color: #6b7280;">({predictions['open']['confidence']}%)</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                            <td style="padding: 8px 0;"><b>High:</b></td>
+                            <td style="padding: 8px 0;">${predictions['high']['value']}</td>
+                            <td style="padding: 8px 0; color: #6b7280;">({predictions['high']['confidence']}%)</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                            <td style="padding: 8px 0;"><b>Low:</b></td>
+                            <td style="padding: 8px 0;">${predictions['low']['value']}</td>
+                            <td style="padding: 8px 0; color: #6b7280;">({predictions['low']['confidence']}%)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0;"><b>Close:</b></td>
+                            <td style="padding: 8px 0;">${predictions['close']['value']}</td>
+                            <td style="padding: 8px 0; color: #6b7280;">({predictions['close']['confidence']}%)</td>
+                        </tr>
+                    </table>
+                    
+                    <h4>📈 Trend Analysis</h4>
+                    <p><b>Trend:</b> {predictions.get('trend', 'NEUTRAL')} ({predictions.get('trend_strength', 50)}%)</p>
+                    <p><b>Recommendation:</b> 
+                        <span style="color: {'#10b981' if predictions.get('recommendation') in ['BUY', 'STRONG BUY'] else '#ef4444' if predictions.get('recommendation') in ['SELL', 'STRONG SELL'] else '#f59e0b'}; font-weight: bold;">
+                            {predictions.get('recommendation', 'HOLD')}
+                        </span>
+                    </p>
+                    
+                    <h4>🤖 AI Analysis</h4>
+                    <p style="background: white; padding: 15px; border-radius: 5px; font-style: italic;">"{analysis}"</p>
+                    
+                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+                    <p style="color: #6b7280; font-size: 12px; text-align: center;">
+                        Generated by AlphaAnalytics • This is an AI prediction • Always do your own research
+                    </p>
+                </div>
             </body>
             </html>
             """
             
-            # Plain text version
-            text_body = f"""
+            # Create plain text version
+            text_content = f"""
             AlphaAnalytics AI Prediction for {symbol}
             
-            Open: ${predictions['open']['value']} ({predictions['open']['confidence']}%)
-            High: ${predictions['high']['value']} ({predictions['high']['confidence']}%)
-            Low: ${predictions['low']['value']} ({predictions['low']['confidence']}%)
-            Close: ${predictions['close']['value']} ({predictions['close']['confidence']}%)
+            PRICE PREDICTIONS:
+            - Open: ${predictions['open']['value']} ({predictions['open']['confidence']}%)
+            - High: ${predictions['high']['value']} ({predictions['high']['confidence']}%)
+            - Low: ${predictions['low']['value']} ({predictions['low']['confidence']}%)
+            - Close: ${predictions['close']['value']} ({predictions['close']['confidence']}%)
             
-            Trend: {predictions.get('trend', 'NEUTRAL')} ({predictions.get('trend_strength', 50)}%)
-            Recommendation: {predictions.get('recommendation', 'HOLD')}
+            TREND: {predictions.get('trend', 'NEUTRAL')} ({predictions.get('trend_strength', 50)}%)
+            RECOMMENDATION: {predictions.get('recommendation', 'HOLD')}
             
-            Analysis: {analysis}
+            AI ANALYSIS:
+            {analysis}
             
             Generated by AlphaAnalytics
             """
             
-            msg.attach(MIMEText(text_body, 'plain'))
-            msg.attach(MIMEText(html_body, 'html'))
+            # Create message
+            message = Mail(
+                from_email=from_email,
+                to_emails=recipient_email,
+                subject=f"🚀 AlphaAnalytics AI Report: {symbol}",
+                html_content=html_content,
+                plain_text_content=text_content
+            )
             
-            # Connect to Gmail SMTP
-            logger.info(f"📡 Connecting to Gmail SMTP for {symbol}...")
-            server = smtplib.SMTP('smtp.gmail.com', 587, timeout=10)
-            server.set_debuglevel(1)  # Enable debug output
-            server.starttls()
+            # Send via SendGrid
+            logger.info(f"📡 Sending via SendGrid for {symbol}...")
+            sg = SendGridAPIClient(sendgrid_api_key)
+            response = sg.send(message)
             
-            # Login
-            logger.info(f"🔑 Attempting login for {sender_email}...")
-            server.login(sender_email, sender_password)
-            logger.info("✅ Login successful!")
+            logger.info(f"✅ SendGrid response: {response.status_code}")
+            if response.status_code in [200, 202]:
+                logger.info(f"✅ Email sent successfully for {symbol}")
+                return True
+            else:
+                logger.error(f"❌ SendGrid error: {response.status_code} - {response.body}")
+                return False
             
-            # Send
-            logger.info(f"📤 Sending email to {recipient_email}...")
-            server.send_message(msg)
-            logger.info("✅ Message sent!")
-            
-            server.quit()
-            logger.info(f"✅ Email sent successfully for {symbol}")
-            return True
-            
-        except smtplib.SMTPAuthenticationError as e:
-            logger.error(f"❌ SMTP Auth failed: {e}")
-            logger.error("This means:")
-            logger.error("1. You're using regular password instead of App Password")
-            logger.error("2. 2FA is not enabled (required for App Passwords)")
-            logger.error("3. The App Password is incorrect")
-        except socket.timeout:
-            logger.error("❌ SMTP connection timeout - check network/firewall")
         except Exception as e:
-            logger.error(f"❌ Email error: {e}")
+            logger.error(f"❌ SendGrid error: {e}")
             import traceback
             traceback.print_exc()
         return False
     
     # Start background thread
-    logger.info(f"📧 Queueing email for {symbol}...")
+    logger.info(f"📧 Queueing email for {symbol} via SendGrid...")
     thread = threading.Thread(target=_send_email_task)
     thread.daemon = True
     thread.start()
