@@ -1044,22 +1044,22 @@ def predict():
         }
     }
     
-    # Only try to send email if credentials exist
+    # FIXED: Send email asynchronously with timeout - doesn't block response
     if EMAIL_SENDER and EMAIL_PASSWORD:
         try:
-            # Send email asynchronously to avoid timeout
+            # Send email in background thread - returns immediately
             import threading
             email_thread = threading.Thread(
                 target=send_prediction_email,
-                args=(EMAIL_SENDER, symbol, predictions, ai_analysis)
+                args=(EMAIL_SENDER, symbol, predictions, ai_analysis)  # Sends to yourself
             )
-            email_thread.daemon = True
+            email_thread.daemon = True  # Thread will exit when main process exits
             email_thread.start()
-            print("📧 Email sending started in background")
+            print(f"📧 Email queued for {symbol} (sending in background)")
         except Exception as e:
-            print(f"Email error: {e}")
+            print(f"⚠️ Email queue error: {e}")  # Don't fail the response
     else:
-        print("Email not sent: Missing EMAIL_SENDER or EMAIL_PASSWORD")
+        print("⚠️ Email not configured - Missing EMAIL_SENDER or EMAIL_PASSWORD")
     
     response = jsonify(response_data)
     response.headers.add('Access-Control-Allow-Credentials', 'true')
@@ -1211,7 +1211,7 @@ def health():
             "Technical Indicators",
             "Sentiment Analysis",
             "VaR Calculation",
-            "Email Notifications",
+            "Email Notifications (Async)",
             "User Authentication",
             "Rate Limit Protection",
             "Yahoo Finance Cache Protection"
@@ -1555,6 +1555,7 @@ def agentic_stock_analysis(symbol, user_goal):
             "comprehensive_analysis": comprehensive_analysis
         }
         
+        # FIXED: Email sending in agentic analysis - async with timeout
         if EMAIL_SENDER and EMAIL_PASSWORD and ("email" in user_goal.lower() or "mail" in user_goal.lower() or "notif" in user_goal.lower()):
             try:
                 # Send email asynchronously
@@ -1566,7 +1567,7 @@ def agentic_stock_analysis(symbol, user_goal):
                 email_thread.daemon = True
                 email_thread.start()
                 result["email_sent"] = True
-                print(f"✓ Email notification started for {symbol}")
+                print(f"📧 Email queued for {symbol} (sending in background)")
             except Exception as e:
                 print(f"✗ Email error: {e}")
                 result["email_sent"] = False
@@ -1613,6 +1614,7 @@ if __name__ == "__main__":
     print(f"  • Gemini Model: {GEMINI_MODEL if GEMINI_MODEL else '❌ Not available'}")
     print(f"  • Gemini Status: {'✅ Working' if (client and GEMINI_MODEL) else '⚠ Using fallback'}")
     print(f"  • Email Settings: {'✅ Configured' if (EMAIL_SENDER and EMAIL_PASSWORD) else '❌ Missing'}")
+    print(f"  • Email Mode: {'✅ Async with timeout' if (EMAIL_SENDER and EMAIL_PASSWORD) else '❌ Disabled'}")
     print(f"  • Predictor Module: ✅ Loaded from models/predictor.py")
     print(f"  • Cache Duration: {CACHE_DURATION} seconds (1 hour) - Prevents Yahoo blocking")
     print("="*60)
