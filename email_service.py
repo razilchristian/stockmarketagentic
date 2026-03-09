@@ -11,8 +11,8 @@ from email.mime.multipart import MIMEMultipart
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Set timeout for SMTP connections (5 seconds)
-socket.setdefaulttimeout(5)
+# Set timeout for SMTP connections (10 seconds)
+socket.setdefaulttimeout(10)
 
 def send_prediction_email(recipient_email, symbol, predictions, analysis):
     """
@@ -25,8 +25,12 @@ def send_prediction_email(recipient_email, symbol, predictions, analysis):
             sender_email = os.getenv("EMAIL_SENDER")
             sender_password = os.getenv("EMAIL_PASSWORD")
             
+            logger.info(f"📧 Email task started for {symbol}")
+            logger.info(f"Sender: {sender_email}")
+            logger.info(f"Password configured: {'Yes' if sender_password else 'No'}")
+            
             if not sender_email or not sender_password:
-                logger.error("Email not configured")
+                logger.error("❌ Email not configured - missing credentials")
                 return False
             
             # Create message
@@ -35,7 +39,7 @@ def send_prediction_email(recipient_email, symbol, predictions, analysis):
             msg['To'] = recipient_email
             msg['Subject'] = f"AlphaAnalytics AI Report: {symbol}"
             
-            # Simple HTML version (minimal to reduce size)
+            # Simple HTML version
             html_body = f"""
             <html>
             <body style="font-family: Arial; padding: 20px;">
@@ -75,30 +79,44 @@ def send_prediction_email(recipient_email, symbol, predictions, analysis):
             msg.attach(MIMEText(text_body, 'plain'))
             msg.attach(MIMEText(html_body, 'html'))
             
-            # Quick SMTP with timeout
-            logger.info(f"📧 Sending email for {symbol} in background...")
-            server = smtplib.SMTP('smtp.gmail.com', 587, timeout=5)
+            # Connect to Gmail SMTP
+            logger.info(f"📡 Connecting to Gmail SMTP for {symbol}...")
+            server = smtplib.SMTP('smtp.gmail.com', 587, timeout=10)
+            server.set_debuglevel(1)  # Enable debug output
             server.starttls()
-            server.login(sender_email, sender_password)
-            server.send_message(msg)
-            server.quit()
             
+            # Login
+            logger.info(f"🔑 Attempting login for {sender_email}...")
+            server.login(sender_email, sender_password)
+            logger.info("✅ Login successful!")
+            
+            # Send
+            logger.info(f"📤 Sending email to {recipient_email}...")
+            server.send_message(msg)
+            logger.info("✅ Message sent!")
+            
+            server.quit()
             logger.info(f"✅ Email sent successfully for {symbol}")
             return True
             
-        except smtplib.SMTPAuthenticationError:
-            logger.error("❌ SMTP Auth failed - use App Password (not regular password)")
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"❌ SMTP Auth failed: {e}")
+            logger.error("This means:")
+            logger.error("1. You're using regular password instead of App Password")
+            logger.error("2. 2FA is not enabled (required for App Passwords)")
+            logger.error("3. The App Password is incorrect")
         except socket.timeout:
-            logger.error("❌ SMTP connection timeout")
+            logger.error("❌ SMTP connection timeout - check network/firewall")
         except Exception as e:
             logger.error(f"❌ Email error: {e}")
+            import traceback
+            traceback.print_exc()
         return False
     
-    # Start background thread and return immediately
+    # Start background thread
+    logger.info(f"📧 Queueing email for {symbol}...")
     thread = threading.Thread(target=_send_email_task)
-    thread.daemon = True  # Thread will exit when main process exits
+    thread.daemon = True
     thread.start()
     
-    # Return immediately without waiting
-    logger.info(f"📧 Email queued for {symbol} (sending in background)")
     return True
