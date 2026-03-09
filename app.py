@@ -251,9 +251,9 @@ CORS(app, supports_credentials=True, origins=[
 HISTORY_DIR = "history"
 os.makedirs(HISTORY_DIR, exist_ok=True)
 
-# Cache for stock data to reduce API calls
+# Cache for stock data to reduce API calls - INCREASED CACHE DURATION to prevent Yahoo blocking
 stock_cache = {}
-CACHE_DURATION = 600  # seconds (increased to reduce API calls)
+CACHE_DURATION = 3600  # INCREASED from 600 to 3600 seconds (1 hour) to prevent Yahoo blocking
 
 # Simple user database (in production, use real database)
 # This will persist during runtime, but will reset when server restarts
@@ -344,27 +344,42 @@ def calculate_technical_indicators(data):
     return df
 
 # ---------------------------------
-# ENHANCED STOCK DATA FETCH WITH CACHING
+# ENHANCED STOCK DATA FETCH WITH CACHING - WITH RETRY LOGIC FOR RATE LIMITING
 # ---------------------------------
 
 def get_stock_data(symbol, force_refresh=False):
-    """Fetch stock data with caching to reduce API calls"""
+    """Fetch stock data with caching to reduce API calls - with retry logic for rate limiting"""
     
-    # Check cache first
+    # Check cache first - ALWAYS use cache unless force_refresh is True
     if not force_refresh and symbol in stock_cache:
         cache_time, cache_data = stock_cache[symbol]
         if (datetime.now() - cache_time).seconds < CACHE_DURATION:
-            print(f"Using cached data for {symbol}")
+            print(f"✅ Using cached data for {symbol} (cache age: {(datetime.now() - cache_time).seconds} seconds)")
+            return cache_data
+        else:
+            print(f"🔄 Cache expired for {symbol} (age: {(datetime.now() - cache_time).seconds} seconds)")
+    
+    # If force_refresh is True, we still check if cache is recent enough to avoid rate limiting
+    if force_refresh and symbol in stock_cache:
+        cache_time, cache_data = stock_cache[symbol]
+        # Even with force_refresh, don't call Yahoo if cache is less than 5 minutes old
+        if (datetime.now() - cache_time).seconds < 300:  # 5 minutes minimum between refreshes
+            print(f"⚠️ Force refresh requested but using recent cache for {symbol} to avoid rate limiting")
             return cache_data
     
     try:
-        print(f"Fetching fresh data for {symbol} from yfinance...")
+        print(f"📡 Fetching fresh data for {symbol} from yfinance...")
+        
+        # Add a small delay between requests to avoid rate limiting
+        time.sleep(1)  # 1 second delay between different stock fetches
+        
         stock = yf.Ticker(symbol)
         
         # Fetch historical data for analysis
         data = stock.history(period="1y")
         
         if data.empty:
+            print(f"⚠️ No data returned for {symbol}")
             return None
         
         # Calculate technical indicators
@@ -450,11 +465,23 @@ def get_stock_data(symbol, force_refresh=False):
         
         # Store in cache
         stock_cache[symbol] = (datetime.now(), result)
+        print(f"✅ Successfully cached fresh data for {symbol}")
         
         return result
         
     except Exception as e:
-        print(f"Stock fetch error for {symbol}:", e)
+        error_msg = str(e)
+        print(f"❌ Stock fetch error for {symbol}: {error_msg}")
+        
+        # Check if it's a rate limiting error
+        if "Too Many Requests" in error_msg or "429" in error_msg:
+            print(f"⚠️ RATE LIMIT DETECTED for {symbol} - Yahoo is blocking requests")
+            # If we have cached data, return it even if expired
+            if symbol in stock_cache:
+                cache_time, cache_data = stock_cache[symbol]
+                print(f"⚠️ Using EXPIRED cache for {symbol} as fallback (age: {(datetime.now() - cache_time).seconds} seconds)")
+                return cache_data
+        
         return None
 
 # ============================================
@@ -860,7 +887,7 @@ def live_quote(symbol):
         if not validate_stock_symbol(symbol):
             return jsonify({"error": "Invalid symbol"}), 400
         
-        # Get stock data (cached)
+        # Get stock data (cached) - NO force_refresh to protect from rate limiting
         stock_data = get_stock_data(symbol, force_refresh=False)
         
         if not stock_data:
@@ -943,7 +970,9 @@ def predict():
     if not validate_stock_symbol(symbol):
         return jsonify({"error": "Invalid symbol"}), 400
 
-    stock_data = get_stock_data(symbol, force_refresh=True)
+    # Use force_refresh=False to protect from rate limiting
+    # Predictions don't need absolute real-time data
+    stock_data = get_stock_data(symbol, force_refresh=False)
 
     if not stock_data:
         return jsonify({"error": "Stock data unavailable"}), 400
@@ -1049,7 +1078,7 @@ def market_summary():
     data = []
 
     for s in stocks:
-        d = get_stock_data(s)
+        d = get_stock_data(s, force_refresh=False)  # IMPORTANT: Use cache, never force refresh
         if d:
             data.append({
                 "symbol": s,
@@ -1170,6 +1199,7 @@ def health():
         "gemini_working": bool(client and GEMINI_MODEL),
         "email_configured": bool(EMAIL_SENDER and EMAIL_PASSWORD),
         "predictor_loaded": True,
+        "cache_duration": f"{CACHE_DURATION} seconds",
         "features": [
             "Live Real-time Data",
             "Predictor Module Integration",
@@ -1182,7 +1212,9 @@ def health():
             "Sentiment Analysis",
             "VaR Calculation",
             "Email Notifications",
-            "User Authentication"
+            "User Authentication",
+            "Rate Limit Protection",
+            "Yahoo Finance Cache Protection"
         ],
         "users_registered": len(users)
     })
@@ -1202,7 +1234,9 @@ def debug_info():
         "models_folder_exists": os.path.exists('models'),
         "predictor_module": False,
         "predictor_test": None,
-        "error": None
+        "error": None,
+        "cache_size": len(stock_cache),
+        "cache_duration": CACHE_DURATION
     }
     
     # Test if models folder exists and list its contents
@@ -1236,7 +1270,8 @@ def debug_simple():
     return jsonify({
         "status": "ok",
         "message": "Server is running",
-        "time": datetime.now().isoformat()
+        "time": datetime.now().isoformat(),
+        "cache_size": len(stock_cache)
     })
 
 # ============================================
@@ -1361,7 +1396,7 @@ def agentic_stock_analysis(symbol, user_goal):
     
     # If no API key, return simple analysis
     if not client or not GEMINI_MODEL:
-        stock_data = get_stock_data(symbol, force_refresh=True)
+        stock_data = get_stock_data(symbol, force_refresh=False)  # Use cache
         if not stock_data:
             return {"error": f"Unable to fetch data for {symbol}"}
         
@@ -1443,7 +1478,7 @@ def agentic_stock_analysis(symbol, user_goal):
         print(plan)
         print("="*60 + "\n")
         
-        stock_data = get_stock_data(symbol, force_refresh=True)
+        stock_data = get_stock_data(symbol, force_refresh=False)  # Use cache
         
         if not stock_data:
             return {
@@ -1579,6 +1614,7 @@ if __name__ == "__main__":
     print(f"  • Gemini Status: {'✅ Working' if (client and GEMINI_MODEL) else '⚠ Using fallback'}")
     print(f"  • Email Settings: {'✅ Configured' if (EMAIL_SENDER and EMAIL_PASSWORD) else '❌ Missing'}")
     print(f"  • Predictor Module: ✅ Loaded from models/predictor.py")
+    print(f"  • Cache Duration: {CACHE_DURATION} seconds (1 hour) - Prevents Yahoo blocking")
     print("="*60)
     print(f"\nDemo Account:")
     print(f"  • Email:    demo@alpha.com")
