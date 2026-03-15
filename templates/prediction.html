@@ -22,6 +22,115 @@
 <link rel="stylesheet" href="/static/css/alpha-analytics.css">
 
 <style>
+  /* ── Data Source Badge ── */
+  .data-source-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    background: var(--darker-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .data-source-bar .source-label { font-weight: 600; }
+
+  .source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .source-badge.yfinance         { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+  .source-badge.alphavantage     { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+  .source-badge.dual             { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+
+  /* ── Alpha Vantage Quote Panel ── */
+  .av-quote-panel {
+    background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(99,102,241,0.08));
+    border: 1px solid rgba(16,185,129,0.25);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .av-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .av-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #34d399;
+  }
+
+  .av-panel-title i { font-size: 16px; }
+
+  .av-panel-status {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .av-quote-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  @media (max-width: 768px) {
+    .av-quote-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .av-quote-item {
+    text-align: center;
+    padding: 10px 8px;
+    background: rgba(0,0,0,0.2);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .av-quote-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .av-quote-value {
+    font-size: 17px;
+    font-weight: 700;
+    font-family: var(--font-display);
+    color: var(--text-primary);
+  }
+
+  .av-quote-value.positive { color: var(--success); }
+  .av-quote-value.negative { color: var(--danger); }
+
+  .av-not-available {
+    text-align: center;
+    padding: 14px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  /* ── Prediction Dashboard ── */
   .prediction-dashboard {
     display: grid;
     grid-template-columns: 1fr 2fr;
@@ -30,9 +139,7 @@
   }
 
   @media (max-width: 900px) {
-    .prediction-dashboard {
-      grid-template-columns: 1fr;
-    }
+    .prediction-dashboard { grid-template-columns: 1fr; }
   }
 
   .stock-list {
@@ -65,31 +172,12 @@
     border-color: var(--primary);
   }
 
-  .stock-info .symbol {
-    font-weight: 600;
-    font-size: 16px;
-  }
+  .stock-info .symbol { font-weight: 600; font-size: 16px; }
+  .stock-info .name   { font-size: 13px; color: var(--text-secondary); }
+  .stock-item.active .name { color: rgba(255,255,255,0.9); }
 
-  .stock-info .name {
-    font-size: 13px;
-    color: var(--text-secondary);
-  }
-
-  .stock-item.active .name {
-    color: rgba(255, 255, 255, 0.9);
-  }
-
-  .stock-item .stock-price {
-    font-weight: 600;
-    font-size: 15px;
-    font-family: var(--font-display);
-  }
-
-  .stock-item .stock-change {
-    font-size: 12px;
-    padding: 4px 8px;
-    border-radius: var(--radius-full);
-  }
+  .stock-item .stock-price  { font-weight: 600; font-size: 15px; font-family: var(--font-display); }
+  .stock-item .stock-change { font-size: 12px; padding: 4px 8px; border-radius: var(--radius-full); }
 
   .prediction-chart {
     height: 200px;
@@ -109,9 +197,7 @@
   }
 
   @media (max-width: 768px) {
-    .prediction-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
+    .prediction-grid { grid-template-columns: repeat(2, 1fr); }
   }
 
   .prediction-box {
@@ -122,32 +208,13 @@
     text-align: center;
   }
 
-  .prediction-box-label {
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin-bottom: 8px;
-  }
+  .prediction-box-label  { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+  .prediction-box-value  { font-size: 20px; font-weight: 700; font-family: var(--font-display); margin-bottom: 4px; }
+  .prediction-box-range  { font-size: 12px; color: var(--text-muted); }
 
-  .prediction-box-value {
-    font-size: 20px;
-    font-weight: 700;
-    font-family: var(--font-display);
-    margin-bottom: 4px;
-  }
+  .confidence-chart-container { height: 250px; margin-bottom: 24px; }
 
-  .prediction-box-range {
-    font-size: 12px;
-    color: var(--text-muted);
-  }
-
-  .confidence-chart-container {
-    height: 250px;
-    margin-bottom: 24px;
-  }
-
-  .risk-section {
-    margin-bottom: 24px;
-  }
+  .risk-section { margin-bottom: 24px; }
 
   .risk-card {
     background: var(--card-bg);
@@ -164,11 +231,7 @@
     margin-bottom: 16px;
   }
 
-  .risk-score {
-    font-size: 32px;
-    font-weight: 700;
-    font-family: var(--font-display);
-  }
+  .risk-score { font-size: 32px; font-weight: 700; font-family: var(--font-display); }
 
   .risk-item {
     display: flex;
@@ -182,9 +245,9 @@
   }
 
   .risk-item.critical { border-left-color: var(--danger); }
-  .risk-item.high { border-left-color: var(--warning); }
-  .risk-item.medium { border-left-color: var(--accent); }
-  .risk-item.low { border-left-color: var(--success); }
+  .risk-item.high     { border-left-color: var(--warning); }
+  .risk-item.medium   { border-left-color: var(--accent); }
+  .risk-item.low      { border-left-color: var(--success); }
 
   .recommendation-card {
     background: var(--gradient-primary);
@@ -203,9 +266,7 @@
   }
 
   @media (max-width: 768px) {
-    .indicators-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
+    .indicators-grid { grid-template-columns: repeat(2, 1fr); }
   }
 
   .indicator-item {
@@ -215,17 +276,8 @@
     border: 1px solid var(--border);
   }
 
-  .indicator-label {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-bottom: 8px;
-  }
-
-  .indicator-value {
-    font-size: 18px;
-    font-weight: 600;
-    font-family: var(--font-display);
-  }
+  .indicator-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+  .indicator-value { font-size: 18px; font-weight: 600; font-family: var(--font-display); }
 
   .loading-spinner {
     display: flex;
@@ -235,15 +287,11 @@
     color: var(--text-muted);
   }
 
-  .loading-spinner i {
-    font-size: 32px;
-    margin-right: 12px;
-    animation: spin 1s linear infinite;
-  }
+  .loading-spinner i { font-size: 32px; margin-right: 12px; animation: spin 1s linear infinite; }
 
   @keyframes spin {
     from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    to   { transform: rotate(360deg); }
   }
 
   .live-badge {
@@ -257,11 +305,7 @@
     animation: pulse 2s infinite;
   }
 
-  .price-updated {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 4px;
-  }
+  .price-updated { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -273,7 +317,7 @@
         <i class="fas fa-chart-line"></i>
         AlphaAnalytics
       </div>
-      
+
       <button class="menu-toggle">
         <span></span>
         <span></span>
@@ -281,18 +325,18 @@
       </button>
 
       <nav class="nav-items">
-        <a href="/jeet" class="nav-item"><i class="fas fa-home"></i>Dashboard</a>
-        <a href="/portfolio" class="nav-item"><i class="fas fa-briefcase"></i>Portfolio</a>
-        <a href="/mystock" class="nav-item"><i class="fas fa-star"></i>My Stock</a>
-        <a href="/deposit" class="nav-item"><i class="fas fa-wallet"></i>Deposit</a>
-        <a href="/insight" class="nav-item"><i class="fas fa-brain"></i>Insight</a>
+        <a href="/jeet"       class="nav-item"><i class="fas fa-home"></i>Dashboard</a>
+        <a href="/portfolio"  class="nav-item"><i class="fas fa-briefcase"></i>Portfolio</a>
+        <a href="/mystock"    class="nav-item"><i class="fas fa-star"></i>My Stock</a>
+        <a href="/deposit"    class="nav-item"><i class="fas fa-wallet"></i>Deposit</a>
+        <a href="/insight"    class="nav-item"><i class="fas fa-brain"></i>Insight</a>
         <a href="/prediction" class="nav-item active"><i class="fas fa-chart-line"></i>Prediction</a>
-        <a href="/news" class="nav-item"><i class="fas fa-newspaper"></i>News</a>
-        <a href="/videos" class="nav-item"><i class="fas fa-video"></i>Videos</a>
+        <a href="/news"       class="nav-item"><i class="fas fa-newspaper"></i>News</a>
+        <a href="/videos"     class="nav-item"><i class="fas fa-video"></i>Videos</a>
         <a href="/superstars" class="nav-item"><i class="fas fa-star"></i>Superstars</a>
-        <a href="/alerts" class="nav-item"><i class="fas fa-bell"></i>Alerts</a>
-        <a href="/help" class="nav-item"><i class="fas fa-question-circle"></i>Help</a>
-        <a href="/profile" class="nav-item"><i class="fas fa-user"></i>Profile</a>
+        <a href="/alerts"     class="nav-item"><i class="fas fa-bell"></i>Alerts</a>
+        <a href="/help"       class="nav-item"><i class="fas fa-question-circle"></i>Help</a>
+        <a href="/profile"    class="nav-item"><i class="fas fa-user"></i>Profile</a>
       </nav>
     </div>
   </header>
@@ -316,6 +360,30 @@
       </div>
     </div>
 
+    <!-- Data Source Bar -->
+    <div class="data-source-bar" id="dataSourceBar" data-aos="fade-up">
+      <i class="fas fa-database" style="color: var(--text-muted);"></i>
+      <span class="source-label">Data Source:</span>
+      <span class="source-badge yfinance" id="dataSourceBadge">
+        <i class="fas fa-circle" style="font-size:7px;"></i> yfinance
+      </span>
+      <span id="dataSourceDetail" style="color: var(--text-muted);">Select a stock to see source info</span>
+    </div>
+
+    <!-- Alpha Vantage Quote Panel -->
+    <div class="av-quote-panel" id="avQuotePanel" data-aos="fade-up" data-aos-delay="50">
+      <div class="av-panel-header">
+        <div class="av-panel-title">
+          <i class="fas fa-satellite-dish"></i>
+          Alpha Vantage Live Quote
+        </div>
+        <span class="av-panel-status" id="avPanelStatus">Awaiting stock selection…</span>
+      </div>
+      <div class="av-quote-grid" id="avQuoteGrid">
+        <div class="av-not-available">Select a stock to load Alpha Vantage data.</div>
+      </div>
+    </div>
+
     <!-- AI Insight -->
     <div class="ai-insight" data-aos="fade-up">
       <div class="ai-insight-header">
@@ -330,7 +398,7 @@
     <!-- Quick Metrics -->
     <div class="grid grid-4" id="quickMetrics" data-aos="fade-up" data-aos-delay="100">
       <div class="metric-card">
-        <div class="metric-label">Current Price <span class="live-badge" style="font-size: 9px;">LIVE</span></div>
+        <div class="metric-label">Current Price <span class="live-badge" style="font-size:9px;">LIVE</span></div>
         <div class="metric-value" id="metricPrice">—</div>
         <div class="metric-change" id="metricChange"></div>
         <div class="price-updated" id="priceUpdateTime"></div>
@@ -443,46 +511,48 @@
 
 <script>
 // AOS Initialization
-AOS.init({
-  duration: 800,
-  once: true,
-  easing: 'ease-in-out'
-});
+AOS.init({ duration: 800, once: true, easing: 'ease-in-out' });
 
+// ─────────────────────────────────────────────────────────────
 // Configuration
+// ─────────────────────────────────────────────────────────────
 const CONFIG = {
   API_BASE_URL: window.location.origin,
   NOTIFICATION_DURATION: 4000,
-  LIVE_UPDATE_INTERVAL: 30000 // 30 seconds
+  LIVE_UPDATE_INTERVAL: 30000  // 30 seconds
 };
 
+// ─────────────────────────────────────────────────────────────
 // App State
+// ─────────────────────────────────────────────────────────────
 const AppState = {
   allStocks: [
-    { symbol: "AAPL", name: "Apple Inc." },
-    { symbol: "MSFT", name: "Microsoft Corp." },
-    { symbol: "GOOGL", name: "Alphabet Inc." },
-    { symbol: "AMZN", name: "Amazon.com Inc." },
-    { symbol: "TSLA", name: "Tesla Inc." },
-    { symbol: "NVDA", name: "NVIDIA Corp." },
-    { symbol: "META", name: "Meta Platforms" },
-    { symbol: "JPM", name: "JPMorgan Chase" },
-    { symbol: "V", name: "Visa Inc." },
-    { symbol: "WMT", name: "Walmart Inc." },
+    { symbol: "AAPL",        name: "Apple Inc." },
+    { symbol: "MSFT",        name: "Microsoft Corp." },
+    { symbol: "GOOGL",       name: "Alphabet Inc." },
+    { symbol: "AMZN",        name: "Amazon.com Inc." },
+    { symbol: "TSLA",        name: "Tesla Inc." },
+    { symbol: "NVDA",        name: "NVIDIA Corp." },
+    { symbol: "META",        name: "Meta Platforms" },
+    { symbol: "JPM",         name: "JPMorgan Chase" },
+    { symbol: "V",           name: "Visa Inc." },
+    { symbol: "WMT",         name: "Walmart Inc." },
     { symbol: "RELIANCE.NS", name: "Reliance Industries" },
-    { symbol: "TCS.NS", name: "Tata Consultancy" },
+    { symbol: "TCS.NS",      name: "Tata Consultancy" },
     { symbol: "HDFCBANK.NS", name: "HDFC Bank" },
-    { symbol: "INFY.NS", name: "Infosys" }
+    { symbol: "INFY.NS",     name: "Infosys" }
   ],
-  selectedStock: null,
-  isGenerating: false,
-  chart: null,
-  liveData: {},
-  lastPredictData: null,
+  selectedStock:      null,
+  isGenerating:       false,
+  chart:              null,
+  liveData:           {},
+  lastPredictData:    null,
   liveUpdateInterval: null
 };
 
+// ─────────────────────────────────────────────────────────────
 // Theme Manager
+// ─────────────────────────────────────────────────────────────
 class ThemeManager {
   static toggle() {
     document.body.classList.toggle('light-theme');
@@ -497,31 +567,33 @@ class ThemeManager {
   }
 
   static showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.innerHTML = `
+    const n = document.createElement('div');
+    n.className = `notification ${type}`;
+    n.innerHTML = `
       <div class="notification-content">
-        <i class="fas ${type === 'success' ? 'fa-check-circle' : 
-                         type === 'error' ? 'fa-exclamation-circle' : 
-                         type === 'warning' ? 'fa-exclamation-triangle' : 
-                         'fa-info-circle'} notification-icon"></i>
+        <i class="fas ${type === 'success' ? 'fa-check-circle' :
+                         type === 'error'   ? 'fa-exclamation-circle' :
+                         type === 'warning' ? 'fa-exclamation-triangle' :
+                                             'fa-info-circle'} notification-icon"></i>
         <span class="notification-message">${message}</span>
         <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
           <i class="fas fa-times"></i>
         </button>
       </div>
     `;
-    document.body.appendChild(notification);
-    setTimeout(() => notification.classList.add('show'), 10);
-    setTimeout(() => notification.remove(), CONFIG.NOTIFICATION_DURATION);
+    document.body.appendChild(n);
+    setTimeout(() => n.classList.add('show'), 10);
+    setTimeout(() => n.remove(), CONFIG.NOTIFICATION_DURATION);
   }
 }
 
+// ─────────────────────────────────────────────────────────────
 // Mobile Menu
+// ─────────────────────────────────────────────────────────────
 class MobileMenu {
   constructor() {
     this.menuToggle = document.querySelector('.menu-toggle');
-    this.navItems = document.querySelector('.nav-items');
+    this.navItems   = document.querySelector('.nav-items');
     this.init();
   }
 
@@ -530,7 +602,6 @@ class MobileMenu {
       this.navItems.classList.toggle('show');
       this.menuToggle.classList.toggle('active');
     });
-
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.navbar') && this.navItems.classList.contains('show')) {
         this.navItems.classList.remove('show');
@@ -540,41 +611,124 @@ class MobileMenu {
   }
 }
 
-// Live Data Service - USING YOUR NEW BACKEND ENDPOINT
+// ─────────────────────────────────────────────────────────────
+// Live Data Service — calls your Flask backend
+// ─────────────────────────────────────────────────────────────
 class LiveDataService {
   static async fetchLiveQuote(symbol) {
     try {
-      const response = await fetch(`${CONFIG.API_BASE_URL}/api/live-quote/${symbol}`);
-      if (!response.ok) throw new Error('Failed to fetch live data');
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Live quote error:', error);
+      const res = await fetch(`${CONFIG.API_BASE_URL}/api/live-quote/${symbol}`);
+      if (!res.ok) throw new Error('Live quote failed');
+      return await res.json();
+    } catch (e) {
+      console.error('Live quote error:', e);
       return null;
     }
   }
 
   static async fetchBatchQuotes(symbols) {
     try {
-      const response = await fetch(`${CONFIG.API_BASE_URL}/api/batch-quote`, {
-        method: 'POST',
+      const res = await fetch(`${CONFIG.API_BASE_URL}/api/batch-quote`, {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbols: symbols })
+        body:    JSON.stringify({ symbols })
       });
-      if (!response.ok) throw new Error('Failed to fetch batch quotes');
-      const data = await response.json();
+      if (!res.ok) throw new Error('Batch quote failed');
+      const data = await res.json();
       return data.quotes;
-    } catch (error) {
-      console.error('Batch quote error:', error);
+    } catch (e) {
+      console.error('Batch quote error:', e);
       return {};
     }
   }
 }
 
-// Stock List Manager - UPDATED to use batch quotes
+// ─────────────────────────────────────────────────────────────
+// Data Source Badge helper
+// ─────────────────────────────────────────────────────────────
+class DataSourceUI {
+  static update(source) {
+    const badge  = document.getElementById('dataSourceBadge');
+    const detail = document.getElementById('dataSourceDetail');
+    if (!badge || !source) return;
+
+    badge.className = 'source-badge';
+
+    if (source === 'yfinance+alphavantage' || source === 'dual') {
+      badge.classList.add('dual');
+      badge.innerHTML = '<i class="fas fa-circle" style="font-size:7px;"></i> yfinance + Alpha Vantage';
+      detail.textContent = 'Historical data from yfinance · Live price enriched by Alpha Vantage';
+    } else if (source === 'alphavantage') {
+      badge.classList.add('alphavantage');
+      badge.innerHTML = '<i class="fas fa-circle" style="font-size:7px;"></i> Alpha Vantage';
+      detail.textContent = 'All data served from Alpha Vantage (yfinance unavailable)';
+    } else {
+      badge.classList.add('yfinance');
+      badge.innerHTML = '<i class="fas fa-circle" style="font-size:7px;"></i> yfinance';
+      detail.textContent = 'Data served from yfinance · Alpha Vantage not configured or not enriching';
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Alpha Vantage Quote Panel
+// ─────────────────────────────────────────────────────────────
+class AVQuotePanel {
+  /**
+   * Renders the AV panel using data returned from /api/live-quote
+   * (the backend already fetches and merges the AV quote).
+   */
+  static render(quote, currency) {
+    const grid   = document.getElementById('avQuoteGrid');
+    const status = document.getElementById('avPanelStatus');
+
+    // Determine whether AV data was actually used
+    const src = quote.data_source || '';
+    const avUsed = src.includes('alphavantage');
+
+    if (!avUsed) {
+      status.textContent = 'Alpha Vantage not configured or not enriching this symbol';
+      grid.innerHTML = `<div class="av-not-available" style="grid-column:1/-1;">
+        <i class="fas fa-info-circle" style="margin-right:6px;"></i>
+        Alpha Vantage data not available — configure <code>ALPHA_VANTAGE_API_KEY</code> in your .env
+      </div>`;
+      return;
+    }
+
+    status.textContent = 'Updated: ' + new Date().toLocaleTimeString();
+
+    const changeClass = (quote.change_percent || 0) >= 0 ? 'positive' : 'negative';
+    const changeSign  = (quote.change_percent || 0) >= 0 ? '+' : '';
+
+    const items = [
+      { label: 'Price',       value: currency + (quote.current_price || 0).toFixed(2),    cls: '' },
+      { label: 'Change',      value: changeSign + (quote.change_percent || 0).toFixed(2) + '%', cls: changeClass },
+      { label: "Day High",    value: currency + (quote.day_high || 0).toFixed(2),          cls: 'positive' },
+      { label: "Day Low",     value: currency + (quote.day_low  || 0).toFixed(2),          cls: 'negative' },
+    ];
+
+    grid.innerHTML = items.map(i => `
+      <div class="av-quote-item">
+        <div class="av-quote-label">${i.label}</div>
+        <div class="av-quote-value ${i.cls}">${i.value}</div>
+      </div>
+    `).join('');
+  }
+
+  static reset() {
+    const grid   = document.getElementById('avQuoteGrid');
+    const status = document.getElementById('avPanelStatus');
+    status.textContent = 'Awaiting stock selection…';
+    grid.innerHTML = '<div class="av-not-available" style="grid-column:1/-1;">Select a stock to load Alpha Vantage data.</div>';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Stock List Manager
+// ─────────────────────────────────────────────────────────────
 class StockListManager {
   constructor() {
-    this.listEl = document.getElementById('stockList');
+    this.listEl   = document.getElementById('stockList');
     this.searchEl = document.getElementById('stockSearch');
     this.init();
   }
@@ -587,39 +741,25 @@ class StockListManager {
 
   async loadAllPrices() {
     const symbols = AppState.allStocks.map(s => s.symbol);
-    const quotes = await LiveDataService.fetchBatchQuotes(symbols);
-    
+    const quotes  = await LiveDataService.fetchBatchQuotes(symbols);
     AppState.liveData = {};
-    Object.keys(quotes).forEach(symbol => {
-      AppState.liveData[symbol] = quotes[symbol];
-    });
-  }
-
-  async updatePriceForSymbol(symbol) {
-    const quote = await LiveDataService.fetchLiveQuote(symbol);
-    if (quote) {
-      AppState.liveData[symbol] = quote;
-      this.updateStockItem(symbol);
-    }
+    Object.keys(quotes).forEach(sym => { AppState.liveData[sym] = quotes[sym]; });
   }
 
   updateStockItem(symbol) {
-    const items = document.querySelectorAll('.stock-item');
-    items.forEach(item => {
-      const symbolEl = item.querySelector('.symbol');
-      if (symbolEl && symbolEl.textContent === symbol) {
-        const quote = AppState.liveData[symbol];
-        const priceEl = item.querySelector('.stock-price');
+    document.querySelectorAll('.stock-item').forEach(item => {
+      const symEl = item.querySelector('.symbol');
+      if (symEl && symEl.textContent === symbol) {
+        const q        = AppState.liveData[symbol];
+        const priceEl  = item.querySelector('.stock-price');
         const changeEl = item.querySelector('.stock-change');
-        
-        if (quote && priceEl) {
+        if (q && priceEl) {
           const isIndian = symbol.includes('.NS');
-          priceEl.textContent = (isIndian ? '₹' : '$') + (quote.current_price || quote.price || 0).toFixed(2);
-          
+          priceEl.textContent  = (isIndian ? '₹' : '$') + (q.current_price || q.price || 0).toFixed(2);
           if (changeEl) {
-            const change = quote.change_percent || quote.changePercent || 0;
-            changeEl.textContent = (change > 0 ? '+' : '') + change.toFixed(2) + '%';
-            changeEl.className = `stock-change ${change >= 0 ? 'badge-success' : 'badge-danger'}`;
+            const ch = q.change_percent || q.changePercent || 0;
+            changeEl.textContent = (ch > 0 ? '+' : '') + ch.toFixed(2) + '%';
+            changeEl.className   = `stock-change ${ch >= 0 ? 'badge-success' : 'badge-danger'}`;
           }
         }
       }
@@ -628,23 +768,18 @@ class StockListManager {
 
   render() {
     this.listEl.innerHTML = '';
-    AppState.allStocks.forEach(stock => {
-      this.listEl.appendChild(this.createItem(stock));
-    });
-    if (AppState.allStocks.length > 0) {
-      this.select(AppState.allStocks[0]);
-    }
+    AppState.allStocks.forEach(s => this.listEl.appendChild(this.createItem(s)));
+    if (AppState.allStocks.length > 0) this.select(AppState.allStocks[0]);
   }
 
   createItem(stock) {
-    const item = document.createElement('div');
+    const item     = document.createElement('div');
     item.className = 'stock-item';
-    
-    const quote = AppState.liveData[stock.symbol] || {};
-    const price = quote.current_price || 0;
-    const change = quote.change_percent || 0;
+    const q        = AppState.liveData[stock.symbol] || {};
+    const price    = q.current_price || 0;
+    const change   = q.change_percent || 0;
     const isIndian = stock.symbol.includes('.NS');
-    
+
     item.innerHTML = `
       <div class="stock-info">
         <div class="symbol">${stock.symbol}</div>
@@ -652,7 +787,7 @@ class StockListManager {
       </div>
       <div>
         <div class="stock-price">${price ? (isIndian ? '₹' : '$') + price.toFixed(2) : '—'}</div>
-        <div class="stock-change ${change >= 0 ? 'badge-success' : 'badge-danger'}" style="margin-top: 4px;">
+        <div class="stock-change ${change >= 0 ? 'badge-success' : 'badge-danger'}" style="margin-top:4px;">
           ${change ? (change > 0 ? '+' : '') + change.toFixed(2) + '%' : '—'}
         </div>
       </div>
@@ -663,21 +798,17 @@ class StockListManager {
 
   select(stock) {
     document.querySelectorAll('.stock-item').forEach(i => i.classList.remove('active'));
-    const found = Array.from(document.querySelectorAll('.stock-item')).find(
-      i => i.querySelector('.symbol').textContent === stock.symbol
-    );
+    const found = Array.from(document.querySelectorAll('.stock-item'))
+      .find(i => i.querySelector('.symbol').textContent === stock.symbol);
     if (found) found.classList.add('active');
-    
+
     AppState.selectedStock = stock;
     document.getElementById('selectedStock').textContent = `${stock.symbol} - ${stock.name}`;
-    
-    // Immediately update metrics with live data
     this.updateSelectedStockMetrics();
   }
 
   async updateSelectedStockMetrics() {
     if (!AppState.selectedStock) return;
-    
     const quote = await LiveDataService.fetchLiveQuote(AppState.selectedStock.symbol);
     if (quote) {
       AppState.liveData[AppState.selectedStock.symbol] = quote;
@@ -688,162 +819,174 @@ class StockListManager {
   updateMetricsWithLiveData(quote) {
     const isIndian = AppState.selectedStock.symbol.includes('.NS');
     const currency = isIndian ? '₹' : '$';
-    
+
     document.getElementById('metricPrice').textContent = currency + (quote.current_price || 0).toFixed(2);
-    document.getElementById('metricChange').textContent = 
+    document.getElementById('metricChange').textContent =
       (quote.change_percent > 0 ? '+' : '') + (quote.change_percent || 0).toFixed(2) + '%';
-    document.getElementById('metricChange').className = `metric-change ${quote.change_percent >= 0 ? 'positive' : 'negative'}`;
-    
-    document.getElementById('dayLow').textContent = currency + (quote.day_low || 0).toFixed(2);
+    document.getElementById('metricChange').className =
+      `metric-change ${quote.change_percent >= 0 ? 'positive' : 'negative'}`;
+
+    document.getElementById('dayLow').textContent  = currency + (quote.day_low || 0).toFixed(2);
     document.getElementById('dayHigh').textContent = currency + (quote.day_high || 0).toFixed(2);
-    document.getElementById('weekLow').textContent = currency + (quote.week_52_low || 0).toFixed(2);
+    document.getElementById('weekLow').textContent  = currency + (quote.week_52_low || 0).toFixed(2);
     document.getElementById('weekHigh').textContent = currency + (quote.week_52_high || 0).toFixed(2);
-    
-    // Update progress bars
+
     if (quote.day_low && quote.day_high && quote.current_price) {
-      const dayRange = quote.day_high - quote.day_low;
-      const dayPosition = ((quote.current_price - quote.day_low) / dayRange) * 100;
-      document.getElementById('dayRangeProgress').style.width = Math.min(100, Math.max(0, dayPosition)) + '%';
+      const range = quote.day_high - quote.day_low;
+      const pos   = ((quote.current_price - quote.day_low) / range) * 100;
+      document.getElementById('dayRangeProgress').style.width = Math.min(100, Math.max(0, pos)) + '%';
     }
-    
     if (quote.week_52_low && quote.week_52_high && quote.current_price) {
-      const weekRange = quote.week_52_high - quote.week_52_low;
-      const weekPosition = ((quote.current_price - quote.week_52_low) / weekRange) * 100;
-      document.getElementById('weekRangeProgress').style.width = Math.min(100, Math.max(0, weekPosition)) + '%';
+      const range = quote.week_52_high - quote.week_52_low;
+      const pos   = ((quote.current_price - quote.week_52_low) / range) * 100;
+      document.getElementById('weekRangeProgress').style.width = Math.min(100, Math.max(0, pos)) + '%';
     }
-    
+
     document.getElementById('priceUpdateTime').textContent = 'Updated: ' + new Date().toLocaleTimeString();
-    
-    // Also update in stock list
+
+    // Update data source badge + AV panel
+    DataSourceUI.update(quote.data_source);
+    AVQuotePanel.render(quote, currency);
+
     this.updateStockItem(AppState.selectedStock.symbol);
   }
 
   filter() {
-    const query = this.searchEl.value.toLowerCase();
+    const q = this.searchEl.value.toLowerCase();
     document.querySelectorAll('.stock-item').forEach(item => {
-      const text = item.textContent.toLowerCase();
-      item.style.display = text.includes(query) ? 'flex' : 'none';
+      item.style.display = item.textContent.toLowerCase().includes(q) ? 'flex' : 'none';
     });
   }
 
   resetDisplay() {
-    document.getElementById('metricPrice').textContent = '—';
-    document.getElementById('metricChange').textContent = '';
-    document.getElementById('metricVolatility').textContent = '—';
-    document.getElementById('metricRSI').textContent = '—';
-    document.getElementById('rsiStatus').textContent = '';
-    document.getElementById('metricRisk').textContent = '—';
-    document.getElementById('riskLevel').textContent = '';
-    document.getElementById('dayLow').textContent = '—';
-    document.getElementById('dayHigh').textContent = '—';
-    document.getElementById('weekLow').textContent = '—';
-    document.getElementById('weekHigh').textContent = '—';
-    document.getElementById('aiInsight').textContent = 'Select a stock and click Predict for AI-powered analysis.';
-    document.getElementById('riskSection').style.display = 'none';
-    document.getElementById('indicatorsGrid').style.display = 'none';
+    document.getElementById('metricPrice').textContent     = '—';
+    document.getElementById('metricChange').textContent    = '';
+    document.getElementById('metricVolatility').textContent= '—';
+    document.getElementById('metricRSI').textContent       = '—';
+    document.getElementById('rsiStatus').textContent       = '';
+    document.getElementById('metricRisk').textContent      = '—';
+    document.getElementById('riskLevel').textContent       = '';
+    document.getElementById('dayLow').textContent          = '—';
+    document.getElementById('dayHigh').textContent         = '—';
+    document.getElementById('weekLow').textContent         = '—';
+    document.getElementById('weekHigh').textContent        = '—';
+    document.getElementById('aiInsight').textContent       = 'Select a stock and click Predict for AI-powered analysis.';
+    document.getElementById('riskSection').style.display   = 'none';
+    document.getElementById('indicatorsGrid').style.display= 'none';
     document.getElementById('recommendationCard').style.display = 'none';
-    document.getElementById('predictionGrid').innerHTML = '';
-    
-    if (AppState.chart) {
-      AppState.chart.destroy();
-      AppState.chart = null;
-    }
+    document.getElementById('predictionGrid').innerHTML    = '';
+    DataSourceUI.update('yfinance');
+    AVQuotePanel.reset();
+
+    if (AppState.chart) { AppState.chart.destroy(); AppState.chart = null; }
   }
 }
 
-// Prediction Display - UPDATED to use backend data
+// ─────────────────────────────────────────────────────────────
+// Prediction Display
+// ─────────────────────────────────────────────────────────────
 class PredictionDisplay {
   static update(data) {
     if (!data) return;
-    
     AppState.lastPredictData = data;
 
     const isIndian = data.symbol?.includes('.NS');
     const currency = isIndian ? '₹' : '$';
 
+    // Metrics
     document.getElementById('metricPrice').textContent = currency + (data.current_price || 0).toFixed(2);
-    document.getElementById('metricChange').textContent = 
+    document.getElementById('metricChange').textContent =
       (data.change_percent > 0 ? '+' : '') + (data.change_percent || 0).toFixed(2) + '%';
-    document.getElementById('metricChange').className = `metric-change ${data.change_percent >= 0 ? 'positive' : 'negative'}`;
-    
+    document.getElementById('metricChange').className =
+      `metric-change ${data.change_percent >= 0 ? 'positive' : 'negative'}`;
+
     document.getElementById('metricVolatility').textContent = (data.volatility || 0).toFixed(1) + '%';
-    document.getElementById('metricRSI').textContent = (data.rsi || 0).toFixed(1);
-    
+    document.getElementById('metricRSI').textContent        = (data.rsi || 0).toFixed(1);
+
     const rsi = data.rsi;
-    let rsiStatus = '';
-    if (rsi > 70) rsiStatus = 'Overbought';
-    else if (rsi < 30) rsiStatus = 'Oversold';
-    else rsiStatus = 'Neutral';
-    document.getElementById('rsiStatus').textContent = rsiStatus;
-    
+    document.getElementById('rsiStatus').textContent =
+      rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral';
+
     document.getElementById('aiInsight').textContent = data.ai_analysis || 'Analysis complete.';
-    
-    // Update day range
+
+    // Day range
     if (data.day_high && data.day_low) {
-      document.getElementById('dayLow').textContent = currency + data.day_low.toFixed(2);
+      document.getElementById('dayLow').textContent  = currency + data.day_low.toFixed(2);
       document.getElementById('dayHigh').textContent = currency + data.day_high.toFixed(2);
-      
-      const dayRange = data.day_high - data.day_low;
-      const dayPosition = ((data.current_price - data.day_low) / dayRange) * 100;
-      document.getElementById('dayRangeProgress').style.width = Math.min(100, Math.max(0, dayPosition)) + '%';
+      const range = data.day_high - data.day_low;
+      const pos   = ((data.current_price - data.day_low) / range) * 100;
+      document.getElementById('dayRangeProgress').style.width = Math.min(100, Math.max(0, pos)) + '%';
     }
-    
-    // Update 52-week range
+
+    // 52-week range
     if (data.week_52_high && data.week_52_low) {
-      document.getElementById('weekLow').textContent = currency + data.week_52_low.toFixed(2);
+      document.getElementById('weekLow').textContent  = currency + data.week_52_low.toFixed(2);
       document.getElementById('weekHigh').textContent = currency + data.week_52_high.toFixed(2);
-      
-      const weekRange = data.week_52_high - data.week_52_low;
-      const weekPosition = ((data.current_price - data.week_52_low) / weekRange) * 100;
-      document.getElementById('weekRangeProgress').style.width = Math.min(100, Math.max(0, weekPosition)) + '%';
+      const range = data.week_52_high - data.week_52_low;
+      const pos   = ((data.current_price - data.week_52_low) / range) * 100;
+      document.getElementById('weekRangeProgress').style.width = Math.min(100, Math.max(0, pos)) + '%';
     }
-    
+
+    // Risk
     if (data.risk_analysis) {
       document.getElementById('metricRisk').textContent = data.risk_analysis.risk_score;
-      document.getElementById('riskLevel').textContent = data.risk_analysis.risk_level;
+      document.getElementById('riskLevel').textContent  = data.risk_analysis.risk_level;
       this.updateRiskAnalysis(data.risk_analysis);
     }
-    
+
+    // Prediction boxes + chart
     if (data.prediction) {
       this.updatePredictionGrid(data.prediction, currency);
       this.updateConfidenceChart(data.prediction, data.current_price, currency);
     }
-    
+
+    // Recommendation
     if (data.prediction?.recommendation) {
       document.getElementById('recommendation').textContent = data.prediction.recommendation;
-      document.getElementById('trendStrength').textContent = 
+      document.getElementById('trendStrength').textContent  =
         `${data.prediction.trend} (Strength: ${data.prediction.trend_strength}%)`;
       document.getElementById('recommendationCard').style.display = 'block';
     }
-    
+
+    // Technical indicators
     if (data.technical_indicators) {
       this.updateIndicators(data.technical_indicators);
     }
-    
+
     document.getElementById('priceUpdateTime').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+
+    // ── NEW: Update Data Source Badge & AV Panel from predict response ──
+    DataSourceUI.update(data.data_source);
+    // Build a quote-like object from predict data so AV panel can render
+    AVQuotePanel.render({
+      data_source:    data.data_source,
+      current_price:  data.current_price,
+      change_percent: data.change_percent,
+      day_high:       data.day_high,
+      day_low:        data.day_low
+    }, currency);
   }
 
   static updatePredictionGrid(prediction, currency = '$') {
     const grid = document.getElementById('predictionGrid');
     grid.innerHTML = '';
-    
-    ['open', 'high', 'low', 'close'].forEach(item => {
-      if (prediction[item]) {
-        const pred = prediction[item];
-        const box = document.createElement('div');
+
+    ['open', 'high', 'low', 'close'].forEach(key => {
+      if (prediction[key]) {
+        const pred = prediction[key];
+        const box  = document.createElement('div');
         box.className = 'prediction-box';
-        
-        let confidenceClass = 'badge-warning';
-        if (pred.confidence >= 80) confidenceClass = 'badge-success';
-        else if (pred.confidence <= 50) confidenceClass = 'badge-danger';
-        
+
+        let confClass = 'badge-warning';
+        if (pred.confidence >= 80) confClass = 'badge-success';
+        else if (pred.confidence <= 50) confClass = 'badge-danger';
+
         box.innerHTML = `
-          <div class="prediction-box-label">${item.toUpperCase()}</div>
+          <div class="prediction-box-label">${key.toUpperCase()}</div>
           <div class="prediction-box-value">${currency}${pred.value.toFixed(2)}</div>
-          <div class="prediction-box-range">${currency}${pred.lower_bound.toFixed(2)} - ${currency}${pred.upper_bound.toFixed(2)}</div>
-          <span class="badge ${confidenceClass} mt-2">${pred.confidence}% Confidence</span>
+          <div class="prediction-box-range">${currency}${pred.lower_bound.toFixed(2)} – ${currency}${pred.upper_bound.toFixed(2)}</div>
+          <span class="badge ${confClass} mt-2">${pred.confidence}% Confidence</span>
         `;
-        
         grid.appendChild(box);
       }
     });
@@ -851,11 +994,8 @@ class PredictionDisplay {
 
   static updateConfidenceChart(prediction, currentPrice, currency = '$') {
     const ctx = document.getElementById('confidenceChart').getContext('2d');
-    
-    if (AppState.chart) {
-      AppState.chart.destroy();
-    }
-    
+    if (AppState.chart) { AppState.chart.destroy(); }
+
     AppState.chart = new Chart(ctx, {
       type: 'line',
       data: {
@@ -864,46 +1004,36 @@ class PredictionDisplay {
           {
             label: 'Upper Bound (90%)',
             data: [currentPrice, prediction.close.upper_bound],
-            borderColor: 'rgba(99, 102, 241, 0.3)',
-            backgroundColor: 'rgba(99, 102, 241, 0.1)',
-            fill: '+1',
-            tension: 0.4,
-            pointRadius: 0
+            borderColor: 'rgba(99,102,241,0.3)',
+            backgroundColor: 'rgba(99,102,241,0.1)',
+            fill: '+1', tension: 0.4, pointRadius: 0
           },
           {
             label: 'Upper Bound (75%)',
             data: [currentPrice, (prediction.close.upper_bound + prediction.close.value) / 2],
-            borderColor: 'rgba(99, 102, 241, 0.5)',
-            backgroundColor: 'rgba(99, 102, 241, 0.2)',
-            fill: '+1',
-            tension: 0.4,
-            pointRadius: 0
+            borderColor: 'rgba(99,102,241,0.5)',
+            backgroundColor: 'rgba(99,102,241,0.2)',
+            fill: '+1', tension: 0.4, pointRadius: 0
           },
           {
             label: 'Prediction',
             data: [currentPrice, prediction.close.value],
-            borderColor: '#6366f1',
-            borderWidth: 3,
-            pointBackgroundColor: '#6366f1',
-            pointRadius: 5
+            borderColor: '#6366f1', borderWidth: 3,
+            pointBackgroundColor: '#6366f1', pointRadius: 5
           },
           {
             label: 'Lower Bound (75%)',
             data: [currentPrice, (prediction.close.lower_bound + prediction.close.value) / 2],
-            borderColor: 'rgba(99, 102, 241, 0.5)',
-            backgroundColor: 'rgba(99, 102, 241, 0.2)',
-            fill: false,
-            tension: 0.4,
-            pointRadius: 0
+            borderColor: 'rgba(99,102,241,0.5)',
+            backgroundColor: 'rgba(99,102,241,0.2)',
+            fill: false, tension: 0.4, pointRadius: 0
           },
           {
             label: 'Lower Bound (90%)',
             data: [currentPrice, prediction.close.lower_bound],
-            borderColor: 'rgba(99, 102, 241, 0.3)',
-            backgroundColor: 'rgba(99, 102, 241, 0.1)',
-            fill: '-1',
-            tension: 0.4,
-            pointRadius: 0
+            borderColor: 'rgba(99,102,241,0.3)',
+            backgroundColor: 'rgba(99,102,241,0.1)',
+            fill: '-1', tension: 0.4, pointRadius: 0
           }
         ]
       },
@@ -912,12 +1042,9 @@ class PredictionDisplay {
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { 
-            mode: 'index', 
-            intersect: false,
-            callbacks: {
-              label: (context) => currency + context.raw.toFixed(2)
-            }
+          tooltip: {
+            mode: 'index', intersect: false,
+            callbacks: { label: (ctx) => currency + ctx.raw.toFixed(2) }
           }
         },
         scales: {
@@ -932,15 +1059,14 @@ class PredictionDisplay {
 
   static updateRiskAnalysis(risk) {
     document.getElementById('riskSection').style.display = 'block';
-    
-    const summary = document.getElementById('riskSummary');
-    summary.innerHTML = `
+
+    document.getElementById('riskSummary').innerHTML = `
       <div class="risk-header">
         <span class="risk-score">${risk.risk_score}</span>
-        <span class="badge ${risk.risk_level === 'CRITICAL' ? 'badge-danger' : 
-                              risk.risk_level === 'HIGH' ? 'badge-warning' : 
-                              risk.risk_level === 'MEDIUM' ? 'badge-info' : 
-                              'badge-success'}">${risk.risk_level}</span>
+        <span class="badge ${risk.risk_level === 'CRITICAL' ? 'badge-danger' :
+                              risk.risk_level === 'HIGH'     ? 'badge-warning' :
+                              risk.risk_level === 'MEDIUM'   ? 'badge-info' :
+                                                              'badge-success'}">${risk.risk_level}</span>
       </div>
       <div class="grid grid-3">
         <div><small>VaR 95%</small><br><strong>${risk.var_95?.toFixed(2)}%</strong></div>
@@ -948,10 +1074,10 @@ class PredictionDisplay {
         <div><small>Sharpe</small><br><strong>${risk.sharpe_ratio?.toFixed(2)}</strong></div>
       </div>
     `;
-    
+
     const list = document.getElementById('riskList');
     list.innerHTML = '<h4 class="mb-3">Risk Factors</h4>';
-    
+
     risk.risks?.forEach(r => {
       const item = document.createElement('div');
       item.className = `risk-item ${r.level.toLowerCase()}`;
@@ -960,7 +1086,7 @@ class PredictionDisplay {
         <div class="flex-1">
           <div class="font-600">${r.type}</div>
           <div class="text-muted">${r.message}</div>
-          <div class="text-muted" style="font-size: 12px; margin-top: 4px;">${r.mitigation || r.impact}</div>
+          <div class="text-muted" style="font-size:12px; margin-top:4px;">${r.mitigation || r.impact}</div>
         </div>
       `;
       list.appendChild(item);
@@ -968,20 +1094,20 @@ class PredictionDisplay {
   }
 
   static updateIndicators(indicators) {
-    document.getElementById('indicatorsGrid').style.display = 'grid';
     const grid = document.getElementById('indicatorsGrid');
+    grid.style.display = 'grid';
     grid.innerHTML = '';
-    
+
     const items = [
       { label: '20-Day MA', value: indicators.ma_20 },
       { label: '50-Day MA', value: indicators.ma_50 },
-      { label: 'BB Upper', value: indicators.bb_upper },
-      { label: 'BB Lower', value: indicators.bb_lower },
-      { label: 'MACD', value: indicators.macd },
-      { label: 'Signal', value: indicators.signal },
-      { label: 'Momentum', value: indicators.momentum + '%' }
+      { label: 'BB Upper',  value: indicators.bb_upper },
+      { label: 'BB Lower',  value: indicators.bb_lower },
+      { label: 'MACD',      value: indicators.macd },
+      { label: 'Signal',    value: indicators.signal },
+      { label: 'Momentum',  value: indicators.momentum + '%' }
     ];
-    
+
     items.forEach(item => {
       if (item.value) {
         const div = document.createElement('div');
@@ -996,32 +1122,32 @@ class PredictionDisplay {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
 // Prediction Manager
+// ─────────────────────────────────────────────────────────────
 class PredictionManager {
   static async generate() {
     if (!AppState.selectedStock) {
       ThemeManager.showNotification('Select a stock first', 'error');
       return;
     }
-    
     if (AppState.isGenerating) return;
-    
+
     AppState.isGenerating = true;
     this.updateButtons(true);
-    
+
     try {
-      const response = await fetch(`${CONFIG.API_BASE_URL}/api/predict`, {
-        method: 'POST',
+      const res = await fetch(`${CONFIG.API_BASE_URL}/api/predict`, {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol: AppState.selectedStock.symbol })
+        body:    JSON.stringify({ symbol: AppState.selectedStock.symbol })
       });
-      
-      if (!response.ok) throw new Error('Prediction failed');
-      
-      const data = await response.json();
+
+      if (!res.ok) throw new Error('Prediction failed');
+      const data = await res.json();
       PredictionDisplay.update(data);
       ThemeManager.showNotification('Predictions ready', 'success');
-      
+
     } catch (err) {
       ThemeManager.showNotification(err.message, 'error');
     } finally {
@@ -1031,24 +1157,21 @@ class PredictionManager {
   }
 
   static updateButtons(loading) {
-    const btn = document.getElementById('predictBtn');
-    btn.disabled = loading;
-    btn.innerHTML = loading ? 
-      '<i class="fas fa-spinner fa-spin"></i> Predicting...' : 
-      '<i class="fas fa-chart-line"></i> Predict';
+    const btn     = document.getElementById('predictBtn');
+    btn.disabled  = loading;
+    btn.innerHTML = loading
+      ? '<i class="fas fa-spinner fa-spin"></i> Predicting...'
+      : '<i class="fas fa-chart-line"></i> Predict';
   }
 }
 
+// ─────────────────────────────────────────────────────────────
 // Live Update Manager
+// ─────────────────────────────────────────────────────────────
 class LiveUpdateManager {
   static startLiveUpdates(interval = CONFIG.LIVE_UPDATE_INTERVAL) {
-    if (AppState.liveUpdateInterval) {
-      clearInterval(AppState.liveUpdateInterval);
-    }
-    
-    AppState.liveUpdateInterval = setInterval(async () => {
-      await this.refreshLiveData();
-    }, interval);
+    if (AppState.liveUpdateInterval) clearInterval(AppState.liveUpdateInterval);
+    AppState.liveUpdateInterval = setInterval(() => this.refreshLiveData(), interval);
   }
 
   static stopLiveUpdates() {
@@ -1060,73 +1183,68 @@ class LiveUpdateManager {
 
   static async refreshLiveData() {
     if (!AppState.selectedStock) return;
-    
     try {
       const quote = await LiveDataService.fetchLiveQuote(AppState.selectedStock.symbol);
       if (quote) {
         AppState.liveData[AppState.selectedStock.symbol] = quote;
-        
-        // Update metrics
+
         const isIndian = AppState.selectedStock.symbol.includes('.NS');
         const currency = isIndian ? '₹' : '$';
-        
+
         document.getElementById('metricPrice').textContent = currency + (quote.current_price || 0).toFixed(2);
-        document.getElementById('metricChange').textContent = 
+        document.getElementById('metricChange').textContent =
           (quote.change_percent > 0 ? '+' : '') + (quote.change_percent || 0).toFixed(2) + '%';
-        document.getElementById('metricChange').className = `metric-change ${quote.change_percent >= 0 ? 'positive' : 'negative'}`;
-        
-        document.getElementById('dayLow').textContent = currency + (quote.day_low || 0).toFixed(2);
+        document.getElementById('metricChange').className =
+          `metric-change ${quote.change_percent >= 0 ? 'positive' : 'negative'}`;
+
+        document.getElementById('dayLow').textContent  = currency + (quote.day_low  || 0).toFixed(2);
         document.getElementById('dayHigh').textContent = currency + (quote.day_high || 0).toFixed(2);
-        
-        // Update progress bars
+
         if (quote.day_low && quote.day_high && quote.current_price) {
-          const dayRange = quote.day_high - quote.day_low;
-          const dayPosition = ((quote.current_price - quote.day_low) / dayRange) * 100;
-          document.getElementById('dayRangeProgress').style.width = Math.min(100, Math.max(0, dayPosition)) + '%';
+          const range = quote.day_high - quote.day_low;
+          const pos   = ((quote.current_price - quote.day_low) / range) * 100;
+          document.getElementById('dayRangeProgress').style.width = Math.min(100, Math.max(0, pos)) + '%';
         }
-        
+
         document.getElementById('priceUpdateTime').textContent = 'Updated: ' + new Date().toLocaleTimeString();
-        
-        // Update in stock list
-        if (stockListManager) {
-          stockListManager.updateStockItem(AppState.selectedStock.symbol);
-        }
+
+        // Refresh data source badge + AV panel on every live tick
+        DataSourceUI.update(quote.data_source);
+        AVQuotePanel.render(quote, currency);
+
+        if (stockListManager) stockListManager.updateStockItem(AppState.selectedStock.symbol);
       }
-    } catch (error) {
-      console.error('Live update error:', error);
+    } catch (e) {
+      console.error('Live update error:', e);
     }
   }
 }
 
-// Initialize
+// ─────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────
 let stockListManager;
 
 document.addEventListener('DOMContentLoaded', () => {
   ThemeManager.load();
   new MobileMenu();
-  
+
   stockListManager = new StockListManager();
-  
-  document.getElementById('predictBtn').addEventListener('click', () => PredictionManager.generate());
-  document.getElementById('refreshBtn').addEventListener('click', () => PredictionManager.generate());
-  document.getElementById('themeBtn').addEventListener('click', () => ThemeManager.toggle());
+
+  document.getElementById('predictBtn').addEventListener('click',  () => PredictionManager.generate());
+  document.getElementById('refreshBtn').addEventListener('click',  () => PredictionManager.generate());
+  document.getElementById('themeBtn').addEventListener('click',    () => ThemeManager.toggle());
   document.getElementById('refreshLiveBtn').addEventListener('click', async () => {
     if (stockListManager && AppState.selectedStock) {
       await stockListManager.updateSelectedStockMetrics();
       ThemeManager.showNotification('Live data refreshed', 'success');
     }
   });
-  
-  // Start live updates
+
   LiveUpdateManager.startLiveUpdates();
 });
 
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-  LiveUpdateManager.stopLiveUpdates();
-});
-
-// Global error handling
+window.addEventListener('beforeunload', () => LiveUpdateManager.stopLiveUpdates());
 window.addEventListener('error', (e) => {
   console.error('Global error:', e.error);
   ThemeManager.showNotification('An unexpected error occurred', 'error');
