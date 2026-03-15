@@ -126,9 +126,10 @@ time.sleep(1)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER", "razilchristian@gmail.com")
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")  # New SendGrid API key
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")  # NEW: Alpha Vantage API key
 
-# Debug: Check if API key is loaded
+# Debug: Check if API keys are loaded
 if GEMINI_API_KEY:
     print(f"✓ Gemini API Key loaded: {GEMINI_API_KEY[:6]}...")
 else:
@@ -138,6 +139,11 @@ if SENDGRID_API_KEY:
     print(f"✓ SendGrid API Key loaded: {SENDGRID_API_KEY[:6]}...")
 else:
     print("❌ WARNING: SENDGRID_API_KEY not found in environment variables")
+
+if ALPHA_VANTAGE_API_KEY:
+    print(f"✓ Alpha Vantage API Key loaded: {ALPHA_VANTAGE_API_KEY[:6]}...")
+else:
+    print("❌ WARNING: ALPHA_VANTAGE_API_KEY not found in environment variables - Alpha Vantage fallback disabled")
 sys.stdout.flush()
 
 # Initialize the new client
@@ -328,29 +334,203 @@ def calculate_technical_indicators(data):
     return df
 
 # ---------------------------------
-# STOCK DATA FETCH WITH CACHING
+# NEW: ALPHA VANTAGE DATA FETCHING
 # ---------------------------------
 
-def get_stock_data(symbol, force_refresh=False):
+def fetch_from_alpha_vantage(symbol):
+    """Fetch stock data from Alpha Vantage API"""
+    if not ALPHA_VANTAGE_API_KEY:
+        print(f"⚠ Alpha Vantage API key not configured")
+        return None, None, "Alpha Vantage API key missing"
+    
+    try:
+        print(f"📡 Fetching data from Alpha Vantage for {symbol}...")
+        
+        # Alpha Vantage endpoints
+        # Daily adjusted data (includes splits/dividends)
+        url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={symbol}&outputsize=full&apikey={ALPHA_VANTAGE_API_KEY}"
+        
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        
+        # Check for API error messages
+        if "Error Message" in data:
+            return None, None, data["Error Message"]
+        
+        if "Note" in data:  # Rate limit message
+            print(f"⚠ Alpha Vantage rate limit: {data['Note']}")
+            return None, None, "Alpha Vantage rate limit exceeded"
+        
+        # Parse time series data
+        if "Time Series (Daily)" not in data:
+            return None, None, "No time series data found"
+        
+        time_series = data["Time Series (Daily)"]
+        
+        # Convert to DataFrame
+        rows = []
+        for date, values in time_series.items():
+            rows.append({
+                'Date': date,
+                'Open': float(values['1. open']),
+                'High': float(values['2. high']),
+                'Low': float(values['3. low']),
+                'Close': float(values['4. close']),
+                'Adjusted Close': float(values['5. adjusted close']),
+                'Volume': int(values['6. volume']),
+                'Dividend Amount': float(values.get('7. dividend amount', 0)),
+                'Split Coefficient': float(values.get('8. split coefficient', 1))
+            })
+        
+        df = pd.DataFrame(rows)
+        df['Date'] = pd.to_datetime(df['Date'])
+        df = df.sort_values('Date')  # Sort chronologically
+        
+        # Get current price (most recent close)
+        current_price = float(df['Close'].iloc[-1])
+        
+        print(f"✅ Successfully fetched {len(df)} days of data from Alpha Vantage for {symbol}")
+        print(f"   Date range: {df['Date'].iloc[0].strftime('%Y-%m-%d')} to {df['Date'].iloc[-1].strftime('%Y-%m-%d')}")
+        print(f"   Current price: ${current_price:.2f}")
+        
+        return df, current_price, None
+        
+    except requests.exceptions.Timeout:
+        print(f"❌ Alpha Vantage timeout for {symbol}")
+        return None, None, "Alpha Vantage timeout"
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Alpha Vantage request error for {symbol}: {e}")
+        return None, None, f"Alpha Vantage request error: {str(e)}"
+    except Exception as e:
+        print(f"❌ Alpha Vantage parse error for {symbol}: {e}")
+        return None, None, f"Alpha Vantage parse error: {str(e)}"
+
+# ---------------------------------
+# ENHANCED STOCK DATA FETCH WITH FALLBACK
+# ---------------------------------
+
+def get_stock_data_with_fallback(symbol, force_refresh=False):
+    """Fetch stock data with Yahoo Finance primary, Alpha Vantage fallback after timeout"""
+    
+    # Check cache first
     if not force_refresh and symbol in stock_cache:
         cache_time, cache_data = stock_cache[symbol]
         if (datetime.now() - cache_time).seconds < CACHE_DURATION:
             print(f"✅ Using cached data for {symbol} (age: {(datetime.now() - cache_time).seconds}s)")
             return cache_data
     
+    # Try Yahoo Finance first with timeout
+    yahoo_data = None
+    yahoo_error = None
+    
     try:
-        print(f"📡 Fetching fresh data for {symbol}...")
-        time.sleep(1)
+        print(f"📡 Attempt 1: Fetching from Yahoo Finance for {symbol}...")
         
-        stock = yf.Ticker(symbol)
-        data = stock.history(period="1y")
+        # Set timeout for Yahoo Finance
+        import signal
+        from contextlib import contextmanager
         
-        if data.empty:
-            return None
+        class TimeoutError(Exception):
+            pass
         
+        @contextmanager
+        def timeout(seconds):
+            def timeout_handler(signum, frame):
+                raise TimeoutError(f"Yahoo Finance timeout after {seconds} seconds")
+            
+            # Set signal handler
+            original_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(seconds)
+            
+            try:
+                yield
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, original_handler)
+        
+        try:
+            with timeout(60):  # 60 seconds timeout for Yahoo Finance
+                stock = yf.Ticker(symbol)
+                data = stock.history(period="10y")
+                
+                if not data.empty:
+                    # Format data
+                    data = data.reset_index()
+                    if 'Date' in data.columns:
+                        data['Date'] = pd.to_datetime(data['Date']).dt.strftime('%Y-%m-%d')
+                    
+                    required = ['Open', 'High', 'Low', 'Close', 'Volume']
+                    for col in required:
+                        if col not in data.columns:
+                            if col == 'Volume':
+                                data[col] = 1000000
+                            else:
+                                data[col] = data.get('Close', 100.0) if 'Close' in data.columns else 100.0
+                    
+                    for col in required:
+                        data[col] = pd.to_numeric(data[col], errors='coerce')
+                        data[col] = data[col].ffill().bfill()
+                    
+                    current_price = float(data['Close'].iloc[-1]) if 'Close' in data.columns else 100.0
+                    
+                    print(f"✅ Yahoo Finance successful for {symbol}")
+                    print(f"   Date range: {data['Date'].iloc[0]} to {data['Date'].iloc[-1]}")
+                    print(f"   Current price: ${current_price:.2f}")
+                    
+                    yahoo_data = (data, current_price)
+                else:
+                    yahoo_error = "No data from Yahoo Finance"
+                    
+        except TimeoutError as e:
+            print(f"⚠ Yahoo Finance timeout for {symbol}: {e}")
+            yahoo_error = str(e)
+        except Exception as e:
+            print(f"⚠ Yahoo Finance error for {symbol}: {e}")
+            yahoo_error = str(e)
+            
+    except Exception as e:
+        print(f"⚠ Yahoo Finance setup error for {symbol}: {e}")
+        yahoo_error = str(e)
+    
+    # If Yahoo Finance succeeded, use it
+    if yahoo_data:
+        data, current_price = yahoo_data
+        result = process_stock_data(symbol, data, current_price)
+        if result:
+            stock_cache[symbol] = (datetime.now(), result)
+            print(f"✅ Successfully cached Yahoo Finance data for {symbol}")
+            return result
+    
+    # Otherwise, try Alpha Vantage as fallback
+    print(f"⚠ Yahoo Finance failed. Attempt 2: Fetching from Alpha Vantage for {symbol}...")
+    
+    alpha_data, alpha_price, alpha_error = fetch_from_alpha_vantage(symbol)
+    
+    if alpha_data is not None:
+        result = process_stock_data(symbol, alpha_data, alpha_price)
+        if result:
+            stock_cache[symbol] = (datetime.now(), result)
+            print(f"✅ Successfully cached Alpha Vantage data for {symbol}")
+            return result
+    
+    # Both failed
+    error_msg = f"Yahoo: {yahoo_error}, Alpha: {alpha_error}" if alpha_error else f"Yahoo: {yahoo_error}"
+    print(f"❌ All data sources failed for {symbol}: {error_msg}")
+    
+    # Try to use expired cache as last resort
+    if symbol in stock_cache:
+        cache_time, cache_data = stock_cache[symbol]
+        print(f"⚠️ Using EXPIRED cache for {symbol} as last resort (age: {(datetime.now() - cache_time).seconds}s)")
+        return cache_data
+    
+    return None
+
+def process_stock_data(symbol, data, current_price):
+    """Process raw stock data into standardized format"""
+    try:
+        # Calculate technical indicators
         df = calculate_technical_indicators(data)
         
-        current_price = float(data["Close"].iloc[-1])
         prev_close = float(data["Close"].iloc[-2]) if len(data) > 1 else current_price
         change = current_price - prev_close
         change_percent = (change / prev_close) * 100 if prev_close != 0 else 0
@@ -383,10 +563,6 @@ def get_stock_data(symbol, force_refresh=False):
         week_52_high = float(data["High"].tail(252).max()) if len(data) >= 252 else current_price * 1.2
         week_52_low = float(data["Low"].tail(252).min()) if len(data) >= 252 else current_price * 0.8
         
-        info = stock.info
-        market_cap = info.get('marketCap', 0)
-        pe_ratio = info.get('trailingPE', 0)
-        
         result = {
             "symbol": symbol,
             "current_price": current_price,
@@ -414,22 +590,21 @@ def get_stock_data(symbol, force_refresh=False):
             "bb_upper": float(df['BB_upper'].iloc[-1]) if not pd.isna(df['BB_upper'].iloc[-1]) else current_price * 1.1,
             "bb_lower": float(df['BB_lower'].iloc[-1]) if not pd.isna(df['BB_lower'].iloc[-1]) else current_price * 0.9,
             "momentum": float(df['Momentum'].iloc[-1]) if not pd.isna(df['Momentum'].iloc[-1]) else 0,
-            "market_cap": market_cap,
-            "pe_ratio": pe_ratio,
             "timestamp": datetime.now().isoformat()
         }
         
-        stock_cache[symbol] = (datetime.now(), result)
-        print(f"✅ Successfully cached fresh data for {symbol}")
         return result
         
     except Exception as e:
-        print(f"❌ Stock fetch error for {symbol}: {e}")
-        if symbol in stock_cache:
-            cache_time, cache_data = stock_cache[symbol]
-            print(f"⚠️ Using expired cache for {symbol}")
-            return cache_data
+        print(f"Error processing stock data for {symbol}: {e}")
         return None
+
+# For backward compatibility, keep original function but redirect to new one
+def get_stock_data(symbol, force_refresh=False):
+    """Legacy function - redirects to new fallback function"""
+    return get_stock_data_with_fallback(symbol, force_refresh)
+
+# ... [rest of your existing code remains the same] ...
 
 # ============================================
 # PREDICTION FUNCTIONS
@@ -734,9 +909,9 @@ def live_quote(symbol):
         if not validate_stock_symbol(symbol):
             return jsonify({"error": "Invalid symbol"}), 400
         
-        stock_data = get_stock_data(symbol, force_refresh=False)
+        stock_data = get_stock_data_with_fallback(symbol, force_refresh=False)  # Use new function
         if not stock_data:
-            return jsonify({"error": "Stock data unavailable"}), 404
+            return jsonify({"error": "Stock data unavailable from all sources"}), 404
         
         return jsonify({
             "symbol": symbol,
@@ -751,8 +926,8 @@ def live_quote(symbol):
             "volatility": stock_data["volatility"],
             "week_52_high": stock_data["week_52_high"],
             "week_52_low": stock_data["week_52_low"],
-            "market_cap": stock_data["market_cap"],
-            "pe_ratio": stock_data["pe_ratio"],
+            "market_cap": stock_data.get("market_cap", 0),  # Alpha Vantage might not have this
+            "pe_ratio": stock_data.get("pe_ratio", 0),      # Alpha Vantage might not have this
             "timestamp": stock_data["timestamp"]
         })
         
@@ -778,7 +953,7 @@ def batch_quote():
         for symbol in symbols:
             symbol = symbol.upper()
             if validate_stock_symbol(symbol):
-                stock_data = get_stock_data(symbol, force_refresh=False)
+                stock_data = get_stock_data_with_fallback(symbol, force_refresh=False)  # Use new function
                 if stock_data:
                     results[symbol] = {
                         "current_price": stock_data["current_price"],
@@ -807,10 +982,10 @@ def predict():
     if not validate_stock_symbol(symbol):
         return jsonify({"error": "Invalid symbol"}), 400
 
-    stock_data = get_stock_data(symbol, force_refresh=False)
+    stock_data = get_stock_data_with_fallback(symbol, force_refresh=False)  # Use new function
 
     if not stock_data:
-        return jsonify({"error": "Stock data unavailable"}), 400
+        return jsonify({"error": "Stock data unavailable from all sources"}), 400
 
     predictions = generate_stock_predictions(symbol, stock_data)
     risk_analysis = generate_risk_analysis(stock_data, predictions)
@@ -900,7 +1075,7 @@ def market_summary():
     data = []
 
     for s in stocks:
-        d = get_stock_data(s, force_refresh=False)
+        d = get_stock_data_with_fallback(s, force_refresh=False)  # Use new function
         if d:
             data.append({
                 "symbol": s,
@@ -979,7 +1154,7 @@ def get_agentic_tools():
         },
         {
             "name": "predict_price",
-            "description": "Generates price predictions using models/predictor.py",
+            "description": "Generates price predictions using machine learning model",
             "parameters": ["symbol"]
         },
         {
@@ -1004,14 +1179,18 @@ def get_agentic_tools():
 def health():
     return jsonify({
         "status": "healthy",
-        "version": "Gemini Enhanced AI v2.0 with SendGrid",
+        "timestamp": datetime.now().isoformat(),
+        "version": "Gemini Enhanced AI v3.0 with Dual Data Sources",
         "ai_model": GEMINI_MODEL if GEMINI_MODEL else "None (using predictor)",
         "api_key_configured": bool(GEMINI_API_KEY),
         "gemini_working": bool(client and GEMINI_MODEL),
         "sendgrid_configured": bool(SENDGRID_API_KEY),
+        "alpha_vantage_configured": bool(ALPHA_VANTAGE_API_KEY),
         "predictor_loaded": True,
         "cache_duration": f"{CACHE_DURATION} seconds",
-        "users_registered": len(users)
+        "users_registered": len(users),
+        "data_sources": ["Yahoo Finance (Primary)", "Alpha Vantage (Fallback)"],
+        "fallback_mechanism": "60-second timeout then automatic failover"
     })
 
 @app.route("/api/debug-simple", methods=["GET"])
@@ -1105,7 +1284,7 @@ def generate_confidence_bands(predictions, stock_data):
 
 def agentic_stock_analysis(symbol, user_goal):
     if not client or not GEMINI_MODEL:
-        stock_data = get_stock_data(symbol, force_refresh=False)
+        stock_data = get_stock_data_with_fallback(symbol, force_refresh=False)
         if not stock_data:
             return {"error": f"Unable to fetch data for {symbol}"}
         
@@ -1181,7 +1360,7 @@ def agentic_stock_analysis(symbol, user_goal):
         print(plan)
         print("="*60 + "\n")
         
-        stock_data = get_stock_data(symbol, force_refresh=False)
+        stock_data = get_stock_data_with_fallback(symbol, force_refresh=False)
         
         if not stock_data:
             return {"error": f"Unable to fetch data for {symbol}", "plan": plan}
@@ -1300,8 +1479,13 @@ if __name__ == "__main__":
     print(f"  • Gemini API Key: {'✅ Configured' if GEMINI_API_KEY else '❌ Missing'}")
     print(f"  • Gemini Model: {GEMINI_MODEL if GEMINI_MODEL else '❌ Not available'}")
     print(f"  • SendGrid API Key: {'✅ Configured' if SENDGRID_API_KEY else '❌ Missing'}")
+    print(f"  • Alpha Vantage API Key: {'✅ Configured' if ALPHA_VANTAGE_API_KEY else '❌ Missing'}")
     print(f"  • Predictor Module: ✅ Loaded")
     print(f"  • Cache Duration: {CACHE_DURATION} seconds")
+    print("="*60)
+    print("\n📡 Data Source Strategy:")
+    print("  • Primary: Yahoo Finance (60-second timeout)")
+    print("  • Fallback: Alpha Vantage (automatic failover)")
     print("="*60)
     print(f"\nDemo Account: demo@alpha.com / demo123")
     print("="*60)
