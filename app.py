@@ -53,6 +53,11 @@ sys.stdout.flush()
 from datetime import datetime, timedelta
 print("✓ datetime imported")
 
+print("📦 Importing requests...")
+sys.stdout.flush()
+import requests
+print("✓ requests imported")
+
 print("📦 Importing Flask and extensions...")
 sys.stdout.flush()
 from flask import Flask, jsonify, request, render_template, redirect, url_for, session, flash
@@ -126,9 +131,10 @@ time.sleep(1)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER", "razilchristian@gmail.com")
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")  # New SendGrid API key
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 
-# Debug: Check if API key is loaded
+# Debug: Check if API keys are loaded
 if GEMINI_API_KEY:
     print(f"✓ Gemini API Key loaded: {GEMINI_API_KEY[:6]}...")
 else:
@@ -138,6 +144,12 @@ if SENDGRID_API_KEY:
     print(f"✓ SendGrid API Key loaded: {SENDGRID_API_KEY[:6]}...")
 else:
     print("❌ WARNING: SENDGRID_API_KEY not found in environment variables")
+
+if ALPHA_VANTAGE_API_KEY:
+    print(f"✓ Alpha Vantage API Key loaded: {ALPHA_VANTAGE_API_KEY[:6]}...")
+else:
+    print("❌ WARNING: ALPHA_VANTAGE_API_KEY not found in environment variables")
+
 sys.stdout.flush()
 
 # Initialize the new client
@@ -328,7 +340,107 @@ def calculate_technical_indicators(data):
     return df
 
 # ---------------------------------
+# ALPHA VANTAGE DATA FETCHER
+# ---------------------------------
+
+def fetch_alpha_vantage_daily(symbol):
+    """
+    Fetches up to 1 year of daily OHLCV data from Alpha Vantage.
+    Returns a pandas DataFrame with columns: Open, High, Low, Close, Volume
+    or None if the fetch fails.
+    """
+    if not ALPHA_VANTAGE_API_KEY:
+        print("⚠ Alpha Vantage API key not configured, skipping AV fetch.")
+        return None
+
+    try:
+        print(f"📡 [Alpha Vantage] Fetching daily data for {symbol}...")
+        url = (
+            f"https://www.alphavantage.co/query"
+            f"?function=TIME_SERIES_DAILY_ADJUSTED"
+            f"&symbol={symbol}"
+            f"&outputsize=full"
+            f"&apikey={ALPHA_VANTAGE_API_KEY}"
+        )
+        resp = requests.get(url, timeout=15)
+        resp.raise_for_status()
+        raw = resp.json()
+
+        if "Time Series (Daily)" not in raw:
+            info = raw.get("Information") or raw.get("Note") or "Unknown error"
+            print(f"⚠ [Alpha Vantage] No data for {symbol}: {info}")
+            return None
+
+        ts = raw["Time Series (Daily)"]
+        records = []
+        cutoff = datetime.now() - timedelta(days=365)
+
+        for date_str, vals in ts.items():
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
+            if dt < cutoff:
+                continue
+            records.append({
+                "Date": dt,
+                "Open":   float(vals["1. open"]),
+                "High":   float(vals["2. high"]),
+                "Low":    float(vals["3. low"]),
+                "Close":  float(vals["5. adjusted close"]),   # adjusted close
+                "Volume": int(vals["6. volume"])
+            })
+
+        if not records:
+            print(f"⚠ [Alpha Vantage] No recent records found for {symbol}.")
+            return None
+
+        df = pd.DataFrame(records).sort_values("Date").reset_index(drop=True)
+        df.set_index("Date", inplace=True)
+        print(f"✅ [Alpha Vantage] Got {len(df)} rows for {symbol}")
+        return df
+
+    except Exception as e:
+        print(f"❌ [Alpha Vantage] Error fetching {symbol}: {e}")
+        return None
+
+
+def fetch_alpha_vantage_quote(symbol):
+    """
+    Fetches the real-time global quote from Alpha Vantage.
+    Returns a dict with price/change/volume info or None on failure.
+    """
+    if not ALPHA_VANTAGE_API_KEY:
+        return None
+
+    try:
+        url = (
+            f"https://www.alphavantage.co/query"
+            f"?function=GLOBAL_QUOTE"
+            f"&symbol={symbol}"
+            f"&apikey={ALPHA_VANTAGE_API_KEY}"
+        )
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        raw = resp.json()
+        q = raw.get("Global Quote", {})
+        if not q or "05. price" not in q:
+            return None
+
+        return {
+            "price":          float(q.get("05. price", 0)),
+            "change":         float(q.get("09. change", 0)),
+            "change_percent": float(q.get("10. change percent", "0%").replace("%", "")),
+            "volume":         int(q.get("06. volume", 0)),
+            "high":           float(q.get("03. high", 0)),
+            "low":            float(q.get("04. low", 0)),
+            "prev_close":     float(q.get("08. previous close", 0)),
+        }
+    except Exception as e:
+        print(f"❌ [Alpha Vantage] Quote error for {symbol}: {e}")
+        return None
+
+
+# ---------------------------------
 # STOCK DATA FETCH WITH CACHING
+# Primary source: yfinance  |  Enriched/fallback: Alpha Vantage
 # ---------------------------------
 
 def get_stock_data(symbol, force_refresh=False):
@@ -338,97 +450,160 @@ def get_stock_data(symbol, force_refresh=False):
             print(f"✅ Using cached data for {symbol} (age: {(datetime.now() - cache_time).seconds}s)")
             return cache_data
     
+    # ── 1. Try yfinance first ──────────────────────────────────────────────
+    yf_data = None
     try:
-        print(f"📡 Fetching fresh data for {symbol}...")
+        print(f"📡 [yfinance] Fetching fresh data for {symbol}...")
         time.sleep(1)
-        
         stock = yf.Ticker(symbol)
-        data = stock.history(period="1y")
-        
-        if data.empty:
-            return None
-        
+        yf_data = stock.history(period="1y")
+
+        if yf_data.empty:
+            print(f"⚠ [yfinance] Empty result for {symbol}, will try Alpha Vantage.")
+            yf_data = None
+    except Exception as e:
+        print(f"❌ [yfinance] Error for {symbol}: {e}")
+        yf_data = None
+
+    # ── 2. Try Alpha Vantage as fallback / supplement ─────────────────────
+    av_hist  = None
+    av_quote = None
+    if yf_data is None or yf_data.empty:
+        av_hist = fetch_alpha_vantage_daily(symbol)
+        if av_hist is not None:
+            # AV daily history doesn't always have a Volume column initialised properly
+            if "Volume" not in av_hist.columns:
+                av_hist["Volume"] = 0
+
+    # Also grab a live AV quote to enrich yfinance data (price/change might be stale)
+    if ALPHA_VANTAGE_API_KEY:
+        av_quote = fetch_alpha_vantage_quote(symbol)
+
+    # ── 3. Decide which historical dataset to use ─────────────────────────
+    data = yf_data if (yf_data is not None and not yf_data.empty) else av_hist
+
+    if data is None or (hasattr(data, 'empty') and data.empty):
+        # Last resort: return expired cache
+        if symbol in stock_cache:
+            print(f"⚠️ Using expired cache for {symbol}")
+            return stock_cache[symbol][1]
+        print(f"❌ No data available for {symbol} from any source.")
+        return None
+
+    try:
         df = calculate_technical_indicators(data)
-        
-        current_price = float(data["Close"].iloc[-1])
-        prev_close = float(data["Close"].iloc[-2]) if len(data) > 1 else current_price
-        change = current_price - prev_close
-        change_percent = (change / prev_close) * 100 if prev_close != 0 else 0
-        
+
+        # ── 4. Price & change ─────────────────────────────────────────────
+        if av_quote and av_quote["price"] > 0:
+            # Prefer live Alpha Vantage quote for the most up-to-date price
+            current_price  = av_quote["price"]
+            change         = av_quote["change"]
+            change_percent = av_quote["change_percent"]
+            print(f"  ↳ Using Alpha Vantage live quote: ${current_price:.2f} ({change_percent:+.2f}%)")
+        else:
+            current_price  = float(data["Close"].iloc[-1])
+            prev_close     = float(data["Close"].iloc[-2]) if len(data) > 1 else current_price
+            change         = current_price - prev_close
+            change_percent = (change / prev_close) * 100 if prev_close != 0 else 0
+
+        # ── 5. Statistical metrics ────────────────────────────────────────
         daily_returns = data["Close"].pct_change().dropna()
-        volatility = float(daily_returns.std() * np.sqrt(252) * 100) if len(daily_returns) > 0 else 0
-        
+        volatility    = float(daily_returns.std() * np.sqrt(252) * 100) if len(daily_returns) > 0 else 0
+
         var_95 = np.percentile(daily_returns, 5) * 100 if len(daily_returns) > 0 else 0
         var_99 = np.percentile(daily_returns, 1) * 100 if len(daily_returns) > 0 else 0
-        
+
         if len(daily_returns) > 0 and daily_returns.std() > 0:
-            excess_returns = daily_returns - 0.02/252
-            sharpe_ratio = float(np.sqrt(252) * excess_returns.mean() / daily_returns.std())
+            excess_returns = daily_returns - 0.02 / 252
+            sharpe_ratio   = float(np.sqrt(252) * excess_returns.mean() / daily_returns.std())
         else:
             sharpe_ratio = 0
-        
+
         recent_prices = data["Close"].tail(10).tolist()
-        
-        current_volume = int(data["Volume"].iloc[-1]) if not pd.isna(data["Volume"].iloc[-1]) else 0
-        avg_volume = int(data["Volume"].tail(30).mean()) if len(data) >= 30 else current_volume
-        volume_trend = "HIGH" if current_volume > avg_volume * 1.5 else "NORMAL" if current_volume > avg_volume * 0.8 else "LOW"
-        
-        recent_high = float(data["High"].tail(20).max()) if len(data) >= 20 else current_price * 1.05
-        recent_low = float(data["Low"].tail(20).min()) if len(data) >= 20 else current_price * 0.95
-        
-        current_rsi = float(df['RSI'].iloc[-1]) if not pd.isna(df['RSI'].iloc[-1]) else 50
-        current_macd = float(df['MACD'].iloc[-1]) if not pd.isna(df['MACD'].iloc[-1]) else 0
-        current_signal = float(df['Signal'].iloc[-1]) if not pd.isna(df['Signal'].iloc[-1]) else 0
-        
+
+        # ── 6. Volume (AV live quote takes priority for current vol) ──────
+        if av_quote and av_quote.get("volume", 0) > 0:
+            current_volume = av_quote["volume"]
+        else:
+            current_volume = int(data["Volume"].iloc[-1]) if not pd.isna(data["Volume"].iloc[-1]) else 0
+
+        avg_volume   = int(data["Volume"].tail(30).mean()) if len(data) >= 30 else current_volume
+        volume_trend = (
+            "HIGH"   if current_volume > avg_volume * 1.5 else
+            "NORMAL" if current_volume > avg_volume * 0.8 else
+            "LOW"
+        )
+
+        # ── 7. High / Low / 52-week ───────────────────────────────────────
+        if av_quote and av_quote.get("high", 0) > 0:
+            recent_high = av_quote["high"]
+            recent_low  = av_quote["low"]
+        else:
+            recent_high = float(data["High"].tail(20).max())  if len(data) >= 20 else current_price * 1.05
+            recent_low  = float(data["Low"].tail(20).min())   if len(data) >= 20 else current_price * 0.95
+
         week_52_high = float(data["High"].tail(252).max()) if len(data) >= 252 else current_price * 1.2
-        week_52_low = float(data["Low"].tail(252).min()) if len(data) >= 252 else current_price * 0.8
-        
-        info = stock.info
-        market_cap = info.get('marketCap', 0)
-        pe_ratio = info.get('trailingPE', 0)
-        
+        week_52_low  = float(data["Low"].tail(252).min())  if len(data) >= 252 else current_price * 0.8
+
+        # ── 8. Technical indicators ───────────────────────────────────────
+        current_rsi    = float(df['RSI'].iloc[-1])    if not pd.isna(df['RSI'].iloc[-1])    else 50
+        current_macd   = float(df['MACD'].iloc[-1])   if not pd.isna(df['MACD'].iloc[-1])   else 0
+        current_signal = float(df['Signal'].iloc[-1]) if not pd.isna(df['Signal'].iloc[-1]) else 0
+
+        # ── 9. Fundamental info (yfinance only) ───────────────────────────
+        market_cap = 0
+        pe_ratio   = 0
+        if yf_data is not None and not yf_data.empty:
+            try:
+                info       = yf.Ticker(symbol).info
+                market_cap = info.get('marketCap', 0)
+                pe_ratio   = info.get('trailingPE', 0)
+            except Exception:
+                pass
+
         result = {
-            "symbol": symbol,
+            "symbol":        symbol,
             "current_price": current_price,
-            "change": change,
-            "change_percent": change_percent,
+            "change":        change,
+            "change_percent":change_percent,
             "recent_prices": recent_prices,
-            "volatility": volatility,
-            "volume": current_volume,
-            "avg_volume": avg_volume,
-            "volume_trend": volume_trend,
-            "day_high": recent_high,
-            "day_low": recent_low,
-            "week_52_high": week_52_high,
-            "week_52_low": week_52_low,
-            "support": recent_low * 0.98,
-            "resistance": recent_high * 1.02,
-            "rsi": current_rsi,
-            "macd": current_macd,
-            "signal": current_signal,
-            "var_95": var_95,
-            "var_99": var_99,
-            "sharpe_ratio": sharpe_ratio,
-            "ma_20": float(df['MA20'].iloc[-1]) if not pd.isna(df['MA20'].iloc[-1]) else current_price,
-            "ma_50": float(df['MA50'].iloc[-1]) if not pd.isna(df['MA50'].iloc[-1]) else current_price,
-            "bb_upper": float(df['BB_upper'].iloc[-1]) if not pd.isna(df['BB_upper'].iloc[-1]) else current_price * 1.1,
-            "bb_lower": float(df['BB_lower'].iloc[-1]) if not pd.isna(df['BB_lower'].iloc[-1]) else current_price * 0.9,
-            "momentum": float(df['Momentum'].iloc[-1]) if not pd.isna(df['Momentum'].iloc[-1]) else 0,
-            "market_cap": market_cap,
-            "pe_ratio": pe_ratio,
-            "timestamp": datetime.now().isoformat()
+            "volatility":    volatility,
+            "volume":        current_volume,
+            "avg_volume":    avg_volume,
+            "volume_trend":  volume_trend,
+            "day_high":      recent_high,
+            "day_low":       recent_low,
+            "week_52_high":  week_52_high,
+            "week_52_low":   week_52_low,
+            "support":       recent_low  * 0.98,
+            "resistance":    recent_high * 1.02,
+            "rsi":           current_rsi,
+            "macd":          current_macd,
+            "signal":        current_signal,
+            "var_95":        var_95,
+            "var_99":        var_99,
+            "sharpe_ratio":  sharpe_ratio,
+            "ma_20":   float(df['MA20'].iloc[-1])    if not pd.isna(df['MA20'].iloc[-1])    else current_price,
+            "ma_50":   float(df['MA50'].iloc[-1])    if not pd.isna(df['MA50'].iloc[-1])    else current_price,
+            "bb_upper":float(df['BB_upper'].iloc[-1])if not pd.isna(df['BB_upper'].iloc[-1])else current_price * 1.1,
+            "bb_lower":float(df['BB_lower'].iloc[-1])if not pd.isna(df['BB_lower'].iloc[-1])else current_price * 0.9,
+            "momentum":float(df['Momentum'].iloc[-1])if not pd.isna(df['Momentum'].iloc[-1])else 0,
+            "market_cap":    market_cap,
+            "pe_ratio":      pe_ratio,
+            "data_source":   "yfinance+alphavantage" if (yf_data is not None and av_quote) else
+                             ("alphavantage"         if av_hist is not None else "yfinance"),
+            "timestamp":     datetime.now().isoformat()
         }
-        
+
         stock_cache[symbol] = (datetime.now(), result)
-        print(f"✅ Successfully cached fresh data for {symbol}")
+        print(f"✅ Successfully cached fresh data for {symbol} [source: {result['data_source']}]")
         return result
-        
+
     except Exception as e:
-        print(f"❌ Stock fetch error for {symbol}: {e}")
+        print(f"❌ Data processing error for {symbol}: {e}")
         if symbol in stock_cache:
-            cache_time, cache_data = stock_cache[symbol]
             print(f"⚠️ Using expired cache for {symbol}")
-            return cache_data
+            return stock_cache[symbol][1]
         return None
 
 # ============================================
@@ -437,9 +612,7 @@ def get_stock_data(symbol, force_refresh=False):
 
 def generate_stock_predictions(symbol, stock_data):
     try:
-        current_price = stock_data['current_price']
         recent_prices = stock_data['recent_prices']
-        volatility = stock_data['volatility']
         
         data = pd.DataFrame({'Close': recent_prices})
         predictions = predict_price(data)
@@ -753,6 +926,7 @@ def live_quote(symbol):
             "week_52_low": stock_data["week_52_low"],
             "market_cap": stock_data["market_cap"],
             "pe_ratio": stock_data["pe_ratio"],
+            "data_source": stock_data.get("data_source", "yfinance"),
             "timestamp": stock_data["timestamp"]
         })
         
@@ -783,7 +957,8 @@ def batch_quote():
                     results[symbol] = {
                         "current_price": stock_data["current_price"],
                         "change_percent": stock_data["change_percent"],
-                        "volume": stock_data["volume"]
+                        "volume": stock_data["volume"],
+                        "data_source": stock_data.get("data_source", "yfinance")
                     }
         
         return jsonify({
@@ -860,6 +1035,7 @@ def predict():
         "confidence_bands": confidence_bands,
         "risk_analysis": risk_analysis,
         "ai_analysis": ai_analysis,
+        "data_source": stock_data.get("data_source", "yfinance"),
         "technical_indicators": {
             "ma_20": stock_data["ma_20"],
             "ma_50": stock_data["ma_50"],
@@ -974,7 +1150,7 @@ def get_agentic_tools():
     tools = [
         {
             "name": "get_stock_data",
-            "description": "Fetches current stock price, technical indicators, volatility, and volume",
+            "description": "Fetches current stock price, technical indicators, volatility, and volume (yfinance + Alpha Vantage)",
             "parameters": ["symbol"]
         },
         {
@@ -996,19 +1172,20 @@ def get_agentic_tools():
     
     return jsonify({
         "tools": tools,
-        "version": "1.0",
-        "description": "Agentic AI Trading Assistant Tools"
+        "version": "1.1",
+        "description": "Agentic AI Trading Assistant Tools (yfinance + Alpha Vantage)"
     })
 
 @app.route("/api/health")
 def health():
     return jsonify({
         "status": "healthy",
-        "version": "Gemini Enhanced AI v2.0 with SendGrid",
+        "version": "Gemini Enhanced AI v2.1 with Alpha Vantage + SendGrid",
         "ai_model": GEMINI_MODEL if GEMINI_MODEL else "None (using predictor)",
         "api_key_configured": bool(GEMINI_API_KEY),
         "gemini_working": bool(client and GEMINI_MODEL),
         "sendgrid_configured": bool(SENDGRID_API_KEY),
+        "alpha_vantage_configured": bool(ALPHA_VANTAGE_API_KEY),
         "predictor_loaded": True,
         "cache_duration": f"{CACHE_DURATION} seconds",
         "users_registered": len(users)
@@ -1154,7 +1331,7 @@ def agentic_stock_analysis(symbol, user_goal):
     STOCK SYMBOL: {symbol}
 
     AVAILABLE TOOLS:
-    1. get_stock_data - Fetches current stock price, technical indicators, volatility, volume
+    1. get_stock_data - Fetches current stock price, technical indicators, volatility, volume (yfinance + Alpha Vantage)
     2. predict_price - Generates price predictions using machine learning model
     3. risk_analysis - Analyzes risks including VaR, volatility, RSI, trend reversal
     4. send_email - Sends analysis report via email
@@ -1297,11 +1474,12 @@ if __name__ == "__main__":
     print(f"Binding to: {host}")
     print("="*60)
     print("\n✓ Configuration Status:")
-    print(f"  • Gemini API Key: {'✅ Configured' if GEMINI_API_KEY else '❌ Missing'}")
-    print(f"  • Gemini Model: {GEMINI_MODEL if GEMINI_MODEL else '❌ Not available'}")
-    print(f"  • SendGrid API Key: {'✅ Configured' if SENDGRID_API_KEY else '❌ Missing'}")
-    print(f"  • Predictor Module: ✅ Loaded")
-    print(f"  • Cache Duration: {CACHE_DURATION} seconds")
+    print(f"  • Gemini API Key:        {'✅ Configured' if GEMINI_API_KEY else '❌ Missing'}")
+    print(f"  • Gemini Model:          {GEMINI_MODEL if GEMINI_MODEL else '❌ Not available'}")
+    print(f"  • SendGrid API Key:      {'✅ Configured' if SENDGRID_API_KEY else '❌ Missing'}")
+    print(f"  • Alpha Vantage API Key: {'✅ Configured' if ALPHA_VANTAGE_API_KEY else '❌ Missing'}")
+    print(f"  • Predictor Module:      ✅ Loaded")
+    print(f"  • Cache Duration:        {CACHE_DURATION} seconds")
     print("="*60)
     print(f"\nDemo Account: demo@alpha.com / demo123")
     print("="*60)
@@ -1309,5 +1487,4 @@ if __name__ == "__main__":
     print("="*60)
     sys.stdout.flush()
     
-    if __name__ == "__main__":
-        app.run(host=host, port=port, debug=False)
+    app.run(host=host, port=port, debug=False)
