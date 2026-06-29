@@ -248,6 +248,7 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=7)
+SESSION_VERSION = "signup-only-v1"
 
 CORS(app, supports_credentials=True, origins=[
     "https://stockmarketagentic.onrender.com", 
@@ -711,9 +712,17 @@ def generate_fallback_predictions(stock_data):
 # LOGIN REQUIRED DECORATOR
 # ============================================
 
+def is_authenticated_session():
+    return "user" in session and session.get("session_version") == SESSION_VERSION
+
+def clear_invalid_session():
+    if "user" in session and session.get("session_version") != SESSION_VERSION:
+        session.clear()
+
 def login_required(f):
     def decorated_function(*args, **kwargs):
-        if "user" not in session:
+        clear_invalid_session()
+        if not is_authenticated_session():
             if request.path.startswith('/api/'):
                 return jsonify({"error": "Authentication required"}), 401
             flash("Please login to access this page", "warning")
@@ -728,13 +737,15 @@ def login_required(f):
 
 @app.route("/")
 def landing():
-    if "user" in session:
+    clear_invalid_session()
+    if is_authenticated_session():
         return redirect(url_for('jeet'))
     return redirect(url_for('login'))
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if "user" in session:
+    clear_invalid_session()
+    if is_authenticated_session():
         return redirect(url_for('jeet'))
     
     if request.method == "POST":
@@ -758,6 +769,7 @@ def login():
                 "first_name": users[email]["first_name"],
                 "last_name": users[email]["last_name"]
             }
+            session["session_version"] = SESSION_VERSION
             
             if request.is_json:
                 return jsonify({"success": True, "redirect": "/jeet"})
@@ -773,7 +785,8 @@ def login():
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
-    if "user" in session:
+    clear_invalid_session()
+    if is_authenticated_session():
         return redirect(url_for('jeet'))
     
     if request.method == "POST":
@@ -825,6 +838,7 @@ def signup():
             "first_name": first_name,
             "last_name": last_name
         }
+        session["session_version"] = SESSION_VERSION
         
         if request.is_json:
             return jsonify({"success": True, "redirect": "/jeet"})
@@ -835,7 +849,7 @@ def signup():
 
 @app.route("/logout")
 def logout():
-    session.pop("user", None)
+    session.clear()
     flash("You have been logged out", "info")
     return redirect(url_for('login'))
 
@@ -1446,7 +1460,8 @@ def agentic_stock_analysis(symbol, user_goal):
 
 @app.route("/<path:path>")
 def catch_all(path):
-    if "user" not in session:
+    clear_invalid_session()
+    if not is_authenticated_session():
         return redirect(url_for('login'))
     return render_template("404.html"), 404
 
