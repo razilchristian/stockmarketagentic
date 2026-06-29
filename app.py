@@ -54,6 +54,62 @@ from datetime import datetime, timedelta
 print("✓ datetime imported")
 
 print("📦 Importing requests...")
+# AlphaAnalytics Agentic AI Backend - Complete Authentication System with Predictor Module
+
+# ============================================
+# RENDER DEPLOYMENT FIXES - ADD THESE FIRST!
+# ============================================
+import sys
+import os
+import time
+
+# Force unbuffered output so Render sees logs immediately
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(line_buffering=True)
+    
+print("="*60)
+print("🚀 ALPHAANALYTICS STARTING UP ON RENDER")
+print("="*60)
+print(f"Python version: {sys.version}")
+print(f"Current directory: {os.getcwd()}")
+print(f"PORT environment variable: {os.environ.get('PORT', 'NOT SET - will use 10000')}")
+print(f"PID: {os.getpid()}")
+print("="*60)
+sys.stdout.flush()
+time.sleep(1)
+
+# ============================================
+# STANDARD IMPORTS
+# ============================================
+print("📦 Importing yfinance...")
+sys.stdout.flush()
+import yfinance as yf
+print("✓ yfinance imported")
+
+print("📦 Importing numpy...")
+sys.stdout.flush()
+import numpy as np
+print("✓ numpy imported")
+
+print("📦 Importing pandas...")
+sys.stdout.flush()
+import pandas as pd
+print("✓ pandas imported")
+
+print("📦 Importing random, json, re, traceback...")
+sys.stdout.flush()
+import random
+import json
+import re
+import traceback
+print("✓ Standard libraries imported")
+
+print("📦 Importing datetime...")
+sys.stdout.flush()
+from datetime import datetime, timedelta
+print("✓ datetime imported")
+
+print("📦 Importing requests...")
 sys.stdout.flush()
 import requests
 print("✓ requests imported")
@@ -62,7 +118,9 @@ print("📦 Importing Flask and extensions...")
 sys.stdout.flush()
 from flask import Flask, jsonify, request, render_template, redirect, url_for, session, flash
 from flask_cors import CORS
-print("✓ Flask and CORS imported")
+from pymongo import MongoClient
+import pymongo
+print("✓ Flask, CORS, and pymongo imported")
 
 print("📦 Importing email_service...")
 sys.stdout.flush()
@@ -133,6 +191,28 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 EMAIL_SENDER = os.getenv("EMAIL_SENDER", "razilchristian@gmail.com")
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
+MONGO_URI = os.getenv("MONGO_URI")
+
+if MONGO_URI:
+    print(f"✓ MongoDB URI loaded")
+    mongo_client = MongoClient(MONGO_URI)
+    db = mongo_client.alpha_analytics
+    users_col = db.users
+    stock_cache_col = db.stock_cache
+    
+    # Ensure demo user exists
+    if not users_col.find_one({"_id": "demo@alpha.com"}):
+        users_col.insert_one({
+            "_id": "demo@alpha.com", 
+            "password": "demo123", 
+            "first_name": "Demo", 
+            "last_name": "User",
+            "created_at": datetime.now().isoformat()
+        })
+        print("✓ Initialized demo user in MongoDB")
+else:
+    print("❌ WARNING: MONGO_URI not found in environment variables. Database features will fail.")
+
 
 # Debug: Check if API keys are loaded
 if GEMINI_API_KEY:
@@ -259,12 +339,8 @@ CORS(app, supports_credentials=True, origins=[
 HISTORY_DIR = "history"
 os.makedirs(HISTORY_DIR, exist_ok=True)
 
-# Cache for stock data to reduce API calls
-stock_cache = {}
+# Cache duration for stock data
 CACHE_DURATION = 3600  # 1 hour cache
-
-# Simple in-memory user database populated through signup.
-users = {}
 
 # Rate limiting for API calls
 api_call_counts = {}
@@ -462,11 +538,13 @@ def fetch_alpha_vantage_quote(symbol):
 # ---------------------------------
 
 def get_stock_data(symbol, force_refresh=False):
-    if not force_refresh and symbol in stock_cache:
-        cache_time, cache_data = stock_cache[symbol]
-        if (datetime.now() - cache_time).seconds < CACHE_DURATION:
-            print(f"✅ Using cached data for {symbol} (age: {(datetime.now() - cache_time).seconds}s)")
-            return cache_data
+    if not force_refresh:
+        cached = stock_cache_col.find_one({"_id": symbol})
+        if cached:
+            cache_time = cached["timestamp"]
+            if (datetime.now() - cache_time).total_seconds() < CACHE_DURATION:
+                print(f"✅ Using cached data for {symbol} (age: {int((datetime.now() - cache_time).total_seconds())}s)")
+                return cached["data"]
     
     # ── 1. Try yfinance first ──────────────────────────────────────────────
     yf_data = None
@@ -502,9 +580,10 @@ def get_stock_data(symbol, force_refresh=False):
 
     if data is None or (hasattr(data, 'empty') and data.empty):
         # Last resort: return expired cache
-        if symbol in stock_cache:
+        cached = stock_cache_col.find_one({"_id": symbol})
+        if cached:
             print(f"⚠️ Using expired cache for {symbol}")
-            return stock_cache[symbol][1]
+            return cached["data"]
         print(f"❌ No data available for {symbol} from any source.")
         return None
 
@@ -613,15 +692,20 @@ def get_stock_data(symbol, force_refresh=False):
             "timestamp":     datetime.now().isoformat()
         }
 
-        stock_cache[symbol] = (datetime.now(), result)
+        stock_cache_col.update_one(
+            {"_id": symbol},
+            {"$set": {"timestamp": datetime.now(), "data": result}},
+            upsert=True
+        )
         print(f"✅ Successfully cached fresh data for {symbol} [source: {result['data_source']}]")
         return result
 
     except Exception as e:
         print(f"❌ Data processing error for {symbol}: {e}")
-        if symbol in stock_cache:
+        cached = stock_cache_col.find_one({"_id": symbol})
+        if cached:
             print(f"⚠️ Using expired cache for {symbol}")
-            return stock_cache[symbol][1]
+            return cached["data"]
         return None
 
 # ============================================
@@ -763,17 +847,18 @@ def login():
             flash("Email and password required", "error")
             return render_template("login.html")
         
-        if email in users and users[email]["password"] == password:
+        user_record = users_col.find_one({"_id": email})
+        if user_record and user_record.get("password") == password:
             session["user"] = {
                 "email": email,
-                "first_name": users[email]["first_name"],
-                "last_name": users[email]["last_name"]
+                "first_name": user_record["first_name"],
+                "last_name": user_record["last_name"]
             }
             session["session_version"] = SESSION_VERSION
             
             if request.is_json:
                 return jsonify({"success": True, "redirect": "/jeet"})
-            flash(f"Welcome back, {users[email]['first_name']}!", "success")
+            flash(f"Welcome back, {user_record['first_name']}!", "success")
             return redirect(url_for('jeet'))
         else:
             if request.is_json:
@@ -788,36 +873,6 @@ def signup():
     clear_invalid_session()
     if is_authenticated_session():
         return redirect(url_for('jeet'))
-    
-    if request.method == "POST":
-        if request.is_json:
-            data = request.get_json()
-            first_name = data.get("first_name") or data.get("firstName")
-            last_name = data.get("last_name") or data.get("lastName")
-            email = data.get("email")
-            password = data.get("password")
-        else:
-            first_name = request.form.get("first_name") or request.form.get("firstName")
-            last_name = request.form.get("last_name") or request.form.get("lastName")
-            email = request.form.get("email")
-            password = request.form.get("password")
-        
-        if not all([first_name, last_name, email, password]):
-            if request.is_json:
-                return jsonify({"success": False, "error": "All fields required"}), 400
-            flash("All fields required", "error")
-            return render_template("signup.html")
-        
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            if request.is_json:
-                return jsonify({"success": False, "error": "Invalid email"}), 400
-            flash("Invalid email format", "error")
-            return render_template("signup.html")
-        
-        if len(password) < 6:
-            if request.is_json:
-                return jsonify({"success": False, "error": "Password too short"}), 400
-            flash("Password must be at least 6 characters", "error")
             return render_template("signup.html")
         
         if email in users:
