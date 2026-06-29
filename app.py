@@ -309,6 +309,30 @@ def get_next_trading_day():
         return (today + timedelta(days=1)).strftime('%Y-%m-%d')
     return (today + timedelta(days=1)).strftime('%Y-%m-%d')
 
+def get_current_user_email():
+    user = session.get("user") or {}
+    email = user.get("email")
+    return email.strip().lower() if isinstance(email, str) and email.strip() else None
+
+def queue_prediction_email(symbol, predictions, analysis):
+    recipient_email = get_current_user_email()
+
+    if not recipient_email:
+        print(f"⚠️ Prediction email skipped for {symbol}: no logged-in user email")
+        return {"queued": False, "recipient": None, "reason": "missing_user_email"}
+
+    if not SENDGRID_API_KEY:
+        print(f"⚠️ Prediction email skipped for {symbol}: SENDGRID_API_KEY not configured")
+        return {"queued": False, "recipient": recipient_email, "reason": "sendgrid_not_configured"}
+
+    try:
+        send_prediction_email(recipient_email, symbol, predictions, analysis)
+        print(f"📧 Prediction email queued for {symbol} to {recipient_email}")
+        return {"queued": True, "recipient": recipient_email}
+    except Exception as e:
+        print(f"⚠️ Prediction email queue error for {symbol}: {e}")
+        return {"queued": False, "recipient": recipient_email, "reason": "queue_error"}
+
 def calculate_technical_indicators(data):
     df = data.copy()
     
@@ -1047,21 +1071,7 @@ def predict():
         }
     }
     
-    # Send email via SendGrid (async)
-    if EMAIL_SENDER and SENDGRID_API_KEY:
-        try:
-            import threading
-            email_thread = threading.Thread(
-                target=send_prediction_email,
-                args=(EMAIL_SENDER, symbol, predictions, ai_analysis)
-            )
-            email_thread.daemon = True
-            email_thread.start()
-            print(f"📧 Email queued for {symbol} via SendGrid")
-        except Exception as e:
-            print(f"⚠️ Email queue error: {e}")
-    else:
-        print("⚠️ SendGrid not configured - Missing SENDGRID_API_KEY")
+    response_data["email"] = queue_prediction_email(symbol, predictions, ai_analysis)
     
     return jsonify(response_data)
 
@@ -1428,20 +1438,8 @@ def agentic_stock_analysis(symbol, user_goal):
             "comprehensive_analysis": comprehensive_analysis
         }
         
-        if EMAIL_SENDER and SENDGRID_API_KEY and ("email" in user_goal.lower() or "mail" in user_goal.lower()):
-            try:
-                import threading
-                email_thread = threading.Thread(
-                    target=send_prediction_email,
-                    args=(EMAIL_SENDER, symbol, predictions, comprehensive_analysis)
-                )
-                email_thread.daemon = True
-                email_thread.start()
-                result["email_sent"] = True
-                print(f"📧 Email queued for {symbol}")
-            except Exception as e:
-                print(f"✗ Email error: {e}")
-                result["email_sent"] = False
+        if "email" in user_goal.lower() or "mail" in user_goal.lower():
+            result["email"] = queue_prediction_email(symbol, predictions, comprehensive_analysis)
         
         return result
         
