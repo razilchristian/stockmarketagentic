@@ -262,15 +262,8 @@ os.makedirs(HISTORY_DIR, exist_ok=True)
 stock_cache = {}
 CACHE_DURATION = 3600  # 1 hour cache
 
-# Simple user database
-users = {
-    "demo@alpha.com": {
-        "password": "demo123",
-        "first_name": "Demo",
-        "last_name": "User",
-        "created_at": datetime.now().isoformat()
-    }
-}
+# Simple in-memory user database populated through signup.
+users = {}
 
 # Rate limiting for API calls
 api_call_counts = {}
@@ -1478,8 +1471,6 @@ if __name__ == "__main__":
     print(f"  • Alpha Vantage API Key: {'✅ Configured' if ALPHA_VANTAGE_API_KEY else '❌ Missing'}")
     print(f"  • Predictor Module:      ✅ Loaded")
     print(f"  • Cache Duration:        {CACHE_DURATION} seconds")
-    print("="*60)
-    print(f"\nDemo Account: demo@alpha.com / demo123")
     print("="*60)
     print(f"\n🚀 Server starting on http://{host}:{port}")
     print("="*60)
